@@ -784,6 +784,15 @@ export interface CoreWaitlistEntry {
   position: number;
 }
 
+export interface PrivacyBreachIncident {
+  created_at: Generated<Timestamp>;
+  detected_at: Timestamp;
+  id: Generated<string>;
+  notify_deadline_at: Timestamp;
+  state: Generated<string>;
+  timeline: Generated<Json>;
+}
+
 export interface PrivacyConsent {
   contact_id: string;
   granted_at: Generated<Timestamp>;
@@ -792,6 +801,59 @@ export interface PrivacyConsent {
   purpose: string;
   withdrawn_at: Timestamp | null;
   wording_version: Generated<string>;
+}
+
+export interface PrivacyDsr {
+  completion_audit: Json | null;
+  contact_id: string;
+  created_at: Generated<Timestamp>;
+  detail: string | null;
+  due_at: Timestamp;
+  id: Generated<string>;
+  kind: string;
+  received_at: Timestamp;
+  state: Generated<string>;
+}
+
+export interface PrivacyErasurePropagation {
+  confirmed_at: Timestamp | null;
+  detail: string | null;
+  dsr_id: string;
+  id: Generated<string>;
+  state: Generated<string>;
+  target: string;
+}
+
+export interface PrivacyProcessingActivity {
+  data_categories: Generated<string[]>;
+  id: Generated<string>;
+  lawful_basis: string;
+  lia_document_ref: string | null;
+  name: string;
+  purpose: string;
+}
+
+export interface PrivacyProcessor {
+  dpa_status: Generated<string>;
+  id: Generated<string>;
+  role: string;
+  transfer_mechanism: Generated<string>;
+  vendor: string;
+}
+
+export interface PrivacyPurgeLog {
+  data_category: string;
+  detail: Generated<Json>;
+  id: Generated<string>;
+  purged_count: number;
+  ran_at: Timestamp;
+}
+
+export interface PrivacyRetentionPolicy {
+  data_category: string;
+  id: Generated<string>;
+  period_days: number;
+  trigger: Generated<string>;
 }
 
 export interface DB {
@@ -865,5 +927,12 @@ export interface DB {
   "core.tombstone": CoreTombstone;
   "core.viewing_outcome": CoreViewingOutcome;
   "core.waitlist_entry": CoreWaitlistEntry;
+  "privacy.breach_incident": PrivacyBreachIncident;
   "privacy.consent": PrivacyConsent;
+  "privacy.dsr": PrivacyDsr;
+  "privacy.erasure_propagation": PrivacyErasurePropagation;
+  "privacy.processing_activity": PrivacyProcessingActivity;
+  "privacy.processor": PrivacyProcessor;
+  "privacy.purge_log": PrivacyPurgeLog;
+  "privacy.retention_policy": PrivacyRetentionPolicy;
 }
