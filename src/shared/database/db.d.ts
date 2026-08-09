@@ -156,6 +156,13 @@ export interface CoreAttribution {
   window_ends_at: Timestamp;
 }
 
+export interface CoreChannelPolicy {
+  allowed: Generated<boolean>;
+  channel: string;
+  country: string;
+  note: string | null;
+}
+
 export interface CoreCommissionStatement {
   amount: Numeric;
   attribution_id: string;
@@ -165,6 +172,17 @@ export interface CoreCommissionStatement {
   id: Generated<string>;
   rate_snapshot: Json;
   state: Generated<string>;
+}
+
+export interface CoreComplianceCheck {
+  art14_required: boolean;
+  checked_at: Generated<Timestamp>;
+  consent_ok: boolean;
+  detail: Generated<Json>;
+  lawful_basis_ok: boolean;
+  message_id: string;
+  suppression_ok: boolean;
+  verdict: string;
 }
 
 export interface CoreContact {
@@ -226,6 +244,17 @@ export interface CoreContactSensitive {
   updated_at: Generated<Timestamp>;
 }
 
+export interface CoreConversation {
+  contact_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  last_message_at: Timestamp | null;
+  property_id: string | null;
+  sync_seq: Generated<Int8>;
+  topic: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface CoreCoverageArea {
   agent_id: string;
   area: string | null;
@@ -257,6 +286,14 @@ export interface CoreDevice {
   platform: string;
   push_token: string | null;
   state: Generated<string>;
+}
+
+export interface CoreDisclosure {
+  contact_id: string;
+  delivered_at: Generated<Timestamp>;
+  id: Generated<string>;
+  kind: Generated<string>;
+  message_id: string;
 }
 
 export interface CoreDispatch {
@@ -417,6 +454,19 @@ export interface CoreMediaAsset {
   rights_status: Generated<string>;
   storage_key: string | null;
   url: string | null;
+}
+
+export interface CoreMessage {
+  body: string | null;
+  channel: string;
+  conversation_id: string;
+  created_at: Generated<Timestamp>;
+  direction: string;
+  id: Generated<string>;
+  provider_message_id: string | null;
+  sent_at: Timestamp | null;
+  state: string;
+  template_version_id: string | null;
 }
 
 export interface CoreNotification {
@@ -610,6 +660,24 @@ export interface CoreRequirementProfile {
   updated_at: Generated<Timestamp>;
 }
 
+export interface CoreSequence {
+  enabled: Generated<boolean>;
+  id: Generated<string>;
+  name: string;
+  steps: Json;
+  throttle: Generated<Json>;
+}
+
+export interface CoreSequenceEnrollment {
+  contact_id: string;
+  created_at: Generated<Timestamp>;
+  current_step: Generated<number>;
+  id: Generated<string>;
+  next_step_at: Timestamp | null;
+  sequence_id: string;
+  state: Generated<string>;
+}
+
 export interface CoreSlotHold {
   created_at: Generated<Timestamp>;
   during: string;
@@ -661,6 +729,21 @@ export interface CoreTask {
   state: Generated<string>;
 }
 
+export interface CoreTemplate {
+  category: string;
+  id: Generated<string>;
+  key: string;
+}
+
+export interface CoreTemplateVersion {
+  body: string;
+  id: Generated<string>;
+  locale: Generated<string>;
+  published_at: Generated<Timestamp>;
+  template_id: string;
+  version: number;
+}
+
 export interface CoreTermsAcceptance {
   accepted_at: Generated<Timestamp>;
   agent_id: string;
@@ -701,6 +784,16 @@ export interface CoreWaitlistEntry {
   position: number;
 }
 
+export interface PrivacyConsent {
+  contact_id: string;
+  granted_at: Generated<Timestamp>;
+  id: Generated<string>;
+  proof: Generated<Json>;
+  purpose: string;
+  withdrawn_at: Timestamp | null;
+  wording_version: Generated<string>;
+}
+
 export interface DB {
   "audit.pii_access_log": AuditPiiAccessLog;
   "core.access_grant": CoreAccessGrant;
@@ -713,16 +806,20 @@ export interface DB {
   "core.assignment_agreement": CoreAssignmentAgreement;
   "core.attendance_proof": CoreAttendanceProof;
   "core.attribution": CoreAttribution;
+  "core.channel_policy": CoreChannelPolicy;
   "core.commission_statement": CoreCommissionStatement;
+  "core.compliance_check": CoreComplianceCheck;
   "core.contact": CoreContact;
   "core.contact_channel": CoreContactChannel;
   "core.contact_merge": CoreContactMerge;
   "core.contact_relationship": CoreContactRelationship;
   "core.contact_role": CoreContactRole;
   "core.contact_sensitive": CoreContactSensitive;
+  "core.conversation": CoreConversation;
   "core.coverage_area": CoreCoverageArea;
   "core.delivery_attempt": CoreDeliveryAttempt;
   "core.device": CoreDevice;
+  "core.disclosure": CoreDisclosure;
   "core.dispatch": CoreDispatch;
   "core.dispatch_candidate": CoreDispatchCandidate;
   "core.dispatch_offer": CoreDispatchOffer;
@@ -737,6 +834,7 @@ export interface DB {
   "core.listing_change": CoreListingChange;
   "core.match": CoreMatch;
   "core.media_asset": CoreMediaAsset;
+  "core.message": CoreMessage;
   "core.notification": CoreNotification;
   "core.notification_preference": CoreNotificationPreference;
   "core.org_membership": CoreOrgMembership;
@@ -753,14 +851,19 @@ export interface DB {
   "core.property_party": CorePropertyParty;
   "core.quarantine_item": CoreQuarantineItem;
   "core.requirement_profile": CoreRequirementProfile;
+  "core.sequence": CoreSequence;
+  "core.sequence_enrollment": CoreSequenceEnrollment;
   "core.slot_hold": CoreSlotHold;
   "core.source": CoreSource;
   "core.stage_transition": CoreStageTransition;
   "core.suppression_entry": CoreSuppressionEntry;
   "core.task": CoreTask;
+  "core.template": CoreTemplate;
+  "core.template_version": CoreTemplateVersion;
   "core.terms_acceptance": CoreTermsAcceptance;
   "core.terms_version": CoreTermsVersion;
   "core.tombstone": CoreTombstone;
   "core.viewing_outcome": CoreViewingOutcome;
   "core.waitlist_entry": CoreWaitlistEntry;
+  "privacy.consent": PrivacyConsent;
 }

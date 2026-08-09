@@ -13,6 +13,7 @@ import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { AgentsModule } from './modules/agents/agents.module';
 import { DispatchModule } from './modules/dispatch/dispatch.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { CommsModule } from './modules/comms/comms.module';
 import { PiiAccessInterceptor } from './shared/audit/pii-access.interceptor';
 import { VersionGateMiddleware } from './shared/auth/version-gate.middleware';
 
@@ -30,6 +31,7 @@ import { VersionGateMiddleware } from './shared/auth/version-gate.middleware';
     AgentsModule,
     DispatchModule,
     NotificationsModule,
+    CommsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_INTERCEPTOR, useClass: PiiAccessInterceptor }],
