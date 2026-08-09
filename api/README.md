@@ -66,6 +66,25 @@ Validate after editing:
 npx @redocly/cli lint api/openapi/*.yaml
 ```
 
+## Changelog
+
+### crm-v1.yaml 1.1.0 — 2026-08-09
+
+Coordinated amendment from the client-team reconciliation
+([`docs/client-reconciliation.md`](../docs/client-reconciliation.md)):
+
+- **Additive:** `ListingSummary.property_kind` (CLOSED), `.occupancy` (OPEN,
+  nullable), `.estimated_rental_yield_percent` (nullable, server-computed);
+  `GET /listings` filters `property_kind`, `occupancy`;
+  `GET /listings/{id}/viewing-slots` (browse-then-hold);
+  `portfolio` tag: `GET/POST /me/portfolio`, `PATCH/DELETE
+  /me/portfolio/{propertyId}` + `PortfolioEntry*` schemas.
+- **Narrowing, client-requested:** `Listing.epc_rating` closed to the Belgian
+  label superset `A++…G` (+ null). Requested as A–G by the client team; closed
+  to the nine-value regional superset instead because Flemish/Brussels/Walloon
+  certificates legitimately carry A+/A++. Signed off via the reconciliation
+  doc; no other consumers existed at amendment time.
+
 ## Contract semantics cheat-sheet
 
 - **Errors**: RFC 9457 `application/problem+json`; the `code` field is the

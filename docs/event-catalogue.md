@@ -106,6 +106,14 @@ Standard payload fields (`*_id`, `state`, relevant timestamps) are implied; the 
 | `notification.acknowledged` | client ACK received | `ack_channel` | dispatch (stop escalation) |
 | `notification.chain_exhausted` | fallback chain ran out | `last_channel` | ops board |
 
+### Portfolio (added 2026-08-09, client-team scope)
+
+| Type | Emitted when | Payload extras | Primary consumers |
+|---|---|---|---|
+| `portfolio.entry_added` / `portfolio.entry_removed` | investor adds/removes a tracked property | — | clients |
+| `portfolio.entry_updated` | investor-entered figures or status change | changed field names | clients |
+| `portfolio.valuation_updated` | comp-based re-estimate **actually changes** `current_value_estimate` (not on every recompute) | `old`, `new` (Money) | clients |
+
 ### Privacy & platform
 
 | Type | Emitted when | Payload extras | Primary consumers |

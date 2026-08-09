@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Property CRM — Client API
-  version: 1.0.0
+  version: 1.1.0
   description: |
     Contract for the web application and the Flutter mobile app.
 
@@ -39,6 +39,7 @@ tags:
   - { name: privacy, description: Consents and data subject requests }
   - { name: sync, description: Delta sync with tombstones }
   - { name: media, description: Resumable uploads }
+  - { name: portfolio, description: 'Investor-tracked properties: entries, cost/income figures, server-side valuation' }
 paths:
   /bootstrap:
     get:
@@ -128,6 +129,8 @@ paths:
         - { name: price_min, in: query, schema: { type: string } }
         - { name: price_max, in: query, schema: { type: string } }
         - { name: bedrooms_min, in: query, schema: { type: integer } }
+        - { name: property_kind, in: query, schema: { type: string, enum: [house, apartment, land, commercial, other] } }
+        - { name: occupancy, in: query, schema: { type: string, enum: [vacant, owner_occupied, tenanted] } }
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
       responses:
@@ -157,6 +160,111 @@ paths:
               schema: { $ref: '#/components/schemas/Listing' }
           headers:
             ETag: { schema: { type: string } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /listings/{listingId}/viewing-slots:
+    get:
+      operationId: listViewingSlots
+      tags: [appointments]
+      summary: Browse open bookable slots before placing a hold
+      description: |
+        Slots are generated from property access rules (occupancy, minimum
+        notice for tenanted properties, blackout windows) in the property's
+        timezone. Browse-then-hold is the intended flow; a hold on a listed
+        slot can still fail with `409 slot_conflict` if another viewer takes
+        it first — slots are availability, not reservations.
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time }, description: Window capped server-side (default 14 days) }
+      responses:
+        '200':
+          description: Open slots, ascending.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [starts_at, ends_at]
+                      properties:
+                        starts_at: { type: string, format: date-time }
+                        ends_at: { type: string, format: date-time }
+                        kind: { type: string, enum: [private, open_house] }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /me/portfolio:
+    get:
+      operationId: listPortfolio
+      tags: [portfolio]
+      summary: My tracked properties with valuation estimates
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Portfolio entries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/PortfolioEntry' }
+                  next_cursor: { type: [string, 'null'] }
+    post:
+      operationId: addPortfolioEntry
+      tags: [portfolio]
+      summary: Track a property (investor-entered figures)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PortfolioEntryInput' }
+      responses:
+        '201':
+          description: Entry created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PortfolioEntry' }
+        '409':
+          description: Property already tracked (`portfolio_duplicate`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /me/portfolio/{propertyId}:
+    patch:
+      operationId: updatePortfolioEntry
+      tags: [portfolio]
+      summary: Update figures or status for a tracked property
+      parameters:
+        - { name: propertyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PortfolioEntryUpdate' }
+      responses:
+        '200':
+          description: Updated entry.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PortfolioEntry' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: removePortfolioEntry
+      tags: [portfolio]
+      summary: Stop tracking a property
+      parameters:
+        - { name: propertyId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Removed. }
         '404': { $ref: '#/components/responses/NotFound' }
   /me/requirement-profiles:
     get:
@@ -907,6 +1015,9 @@ components:
         postcode: { type: string }
         bedrooms: { type: integer }
         floor_area_sqm: { type: number }
+        property_kind: { type: string, enum: [house, apartment, land, commercial, other], description: CLOSED }
+        occupancy: { type: [string, 'null'], description: 'OPEN — vacant, owner_occupied, tenanted; null when unknown' }
+        estimated_rental_yield_percent: { type: [number, 'null'], description: 'Server-computed from comparable rents; null until enough comps exist. Never client-supplied.' }
         thumbnail_url: { type: [string, 'null'], format: uri }
         location: { $ref: '#/components/schemas/GeoPoint' }
     Listing:
@@ -916,7 +1027,10 @@ components:
           properties:
             description: { type: string }
             features: { type: object, additionalProperties: true }
-            epc_rating: { type: [string, 'null'] }
+            epc_rating:
+              type: [string, 'null']
+              enum: ['A++', 'A+', 'A', 'B', 'C', 'D', 'E', 'F', 'G', null]
+              description: 'CLOSED — Belgian regional EPC label superset (Flanders/Brussels/Wallonia scales differ but all values fall in this set). Null when missing or unparseable; raw source values that do not normalise are parked for staff review at ingest, never forced into a grade.'
             media:
               type: array
               items:
@@ -926,6 +1040,33 @@ components:
                   caption: { type: [string, 'null'] }
                   position: { type: integer }
             deep_link: { type: string, format: uri }
+    PortfolioEntryInput:
+      type: object
+      required: [property_id, purchase_price, monthly_rental_income, monthly_expenses]
+      properties:
+        property_id: { type: string, format: uuid }
+        purchase_price: { $ref: '#/components/schemas/Money' }
+        monthly_rental_income: { $ref: '#/components/schemas/Money' }
+        monthly_expenses: { $ref: '#/components/schemas/Money' }
+        status: { type: string, enum: [watching, offer_made, owned], default: watching, description: CLOSED }
+    PortfolioEntryUpdate:
+      type: object
+      properties:
+        purchase_price: { $ref: '#/components/schemas/Money' }
+        monthly_rental_income: { $ref: '#/components/schemas/Money' }
+        monthly_expenses: { $ref: '#/components/schemas/Money' }
+        status: { type: string, enum: [watching, offer_made, owned], description: CLOSED }
+    PortfolioEntry:
+      allOf:
+        - $ref: '#/components/schemas/PortfolioEntryInput'
+        - type: object
+          required: [status, added_at]
+          properties:
+            status: { type: string, enum: [watching, offer_made, owned], description: CLOSED }
+            added_at: { type: string, format: date-time }
+            current_value_estimate:
+              allOf: [{ $ref: '#/components/schemas/Money' }]
+              description: 'Server-computed from comparable listings. Absent (not null-as-zero) until enough comps exist to estimate. Never client-supplied.'
     RequirementProfileInput:
       type: object
       properties:
