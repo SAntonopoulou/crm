@@ -95,6 +95,16 @@ export interface CoreAgentProfile {
   working_hours: Generated<Json>;
 }
 
+export interface CoreAgentScorecard {
+  agent_id: string | null;
+  claim_rate: Numeric | null;
+  computed_at: Timestamp | null;
+  feedback_avg: Numeric | null;
+  no_show_rate: Numeric | null;
+  punctuality: Numeric | null;
+  score: Numeric | null;
+}
+
 export interface CoreAppointment {
   agent_id: string | null;
   cancel_reason: string | null;
@@ -564,7 +574,9 @@ export interface CorePortfolioEntry {
   last_estimated_at: Timestamp | null;
   last_value_estimate: Numeric | null;
   monthly_expenses: Numeric;
+  monthly_mortgage_payment: Numeric | null;
   monthly_rental_income: Numeric;
+  outstanding_debt: Numeric | null;
   property_id: string;
   purchase_price: Numeric;
   status: Generated<string>;
@@ -901,6 +913,7 @@ export interface DB {
   "core.agent_absence": CoreAgentAbsence;
   "core.agent_document": CoreAgentDocument;
   "core.agent_profile": CoreAgentProfile;
+  "core.agent_scorecard": CoreAgentScorecard;
   "core.appointment": CoreAppointment;
   "core.appointment_feedback": CoreAppointmentFeedback;
   "core.assignment_agreement": CoreAssignmentAgreement;

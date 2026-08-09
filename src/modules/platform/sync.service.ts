@@ -196,6 +196,12 @@ export class SyncService {
         purchase_price: { amount: Number(r.purchase_price).toFixed(2), currency: r.currency },
         monthly_rental_income: { amount: Number(r.monthly_rental_income).toFixed(2), currency: r.currency },
         monthly_expenses: { amount: Number(r.monthly_expenses).toFixed(2), currency: r.currency },
+        ...(r.outstanding_debt !== null
+          ? { outstanding_debt: { amount: Number(r.outstanding_debt).toFixed(2), currency: r.currency } }
+          : {}),
+        ...(r.monthly_mortgage_payment !== null
+          ? { monthly_mortgage_payment: { amount: Number(r.monthly_mortgage_payment).toFixed(2), currency: r.currency } }
+          : {}),
         status: r.status,
         added_at: r.added_at.toISOString(),
         // current_value_estimate deliberately omitted from sync payloads:

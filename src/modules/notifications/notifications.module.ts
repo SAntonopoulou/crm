@@ -31,6 +31,13 @@ export class NotificationsModule implements OnModuleInit {
       const { notificationId, step } = p as { notificationId: string; step: number };
       return this.notifications.escalate(notificationId, step);
     });
+    // Generic seam: any module can request a notification via the job
+    // registry without importing this module (dependency direction).
+    this.registry.register('notification.send', async (p) => {
+      await this.notifications.send(
+        p as Parameters<NotificationsService['send']>[0],
+      );
+    });
     // Dispatch offers are the flagship time-critical message.
     this.registry.register(JOB_NOTIFY_DISPATCH_OFFER, async (p) => {
       const payload = p as { offerId: string; agentId: string; ttlExpiresAt: string };

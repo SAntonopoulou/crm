@@ -51,6 +51,7 @@ export class JobsRuntime implements OnModuleInit, OnModuleDestroy {
       ['privacy.grant_revoke', { every: 300_000 }],
       ['privacy.retention_sweep', { pattern: '0 3 * * *' }],
       ['agents.doc_lapse_check', { pattern: '0 6 * * *' }],
+      ['agents.scorecard_refresh', { pattern: '30 * * * *' }],
       ['portfolio.revalue', { pattern: '0 * * * *' }],
     ];
     for (const [name, repeat] of repeatables) {

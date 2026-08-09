@@ -21,7 +21,9 @@ export const appointmentMachine = new StateMachine<AppointmentState>('appointmen
   dispatching: ['booked', 'unstaffed', 'cancelled'],
   unstaffed: ['dispatching', 'cancelled'],
   booked: ['confirmed', 'dispatching', 'cancelled', 'no_show'],
-  confirmed: ['in_progress', 'cancelled', 'no_show'],
+  // confirmed → dispatching: agent withdrawal before the viewing re-opens
+  // the slot for a fresh dispatch (the viewer keeps their booking).
+  confirmed: ['in_progress', 'dispatching', 'cancelled', 'no_show'],
   in_progress: ['completed'],
   completed: ['outcome_captured'],
   outcome_captured: [],

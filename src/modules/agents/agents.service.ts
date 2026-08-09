@@ -9,6 +9,7 @@ import { Clock } from '../../shared/jobs/clock';
 import { StateMachine } from '../../shared/state-machine';
 
 export const JOB_DOC_LAPSE_CHECK = 'agents.doc_lapse_check';
+export const JOB_SCORECARD_REFRESH = 'agents.scorecard_refresh';
 
 export type AgentState =
   | 'invited'
@@ -230,6 +231,13 @@ export class AgentsService {
       });
     }
     return lapsed.length;
+  }
+
+  /** Hourly job: recompute the derived scorecard (concurrently — no lock). */
+  async refreshScorecard(): Promise<void> {
+    await sql`REFRESH MATERIALIZED VIEW CONCURRENTLY core.agent_scorecard`.execute(
+      this.db.kysely,
+    );
   }
 
   /** A renewed, verified document lifts an automatic suspension. */

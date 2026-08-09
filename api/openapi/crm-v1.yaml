@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Property CRM — Client API
-  version: 1.1.0
+  version: 1.2.0
   description: |
     Contract for the web application and the Flutter mobile app.
 
@@ -476,6 +476,42 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
+  /appointments/{appointmentId}/register:
+    post:
+      operationId: registerOpenHouse
+      tags: [appointments]
+      summary: Register for an open house (capacity-aware)
+      description: |
+        Positions within the appointment's capacity are confirmed attendees;
+        later registrants are waitlisted and promoted automatically (with a
+        notification) when someone unregisters.
+      parameters: [{ $ref: '#/components/parameters/AppointmentId' }]
+      responses:
+        '201':
+          description: Registration result.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [position, confirmed]
+                properties:
+                  position: { type: integer }
+                  confirmed: { type: boolean, description: false = waitlisted }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Not an open house (`not_open_house`) or wrong state.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /appointments/{appointmentId}/unregister:
+    post:
+      operationId: unregisterOpenHouse
+      tags: [appointments]
+      summary: Withdraw an open-house registration
+      parameters: [{ $ref: '#/components/parameters/AppointmentId' }]
+      responses:
+        '204': { description: Removed; the next waitlisted viewer is promoted. }
+        '404': { $ref: '#/components/responses/NotFound' }
   /appointments/{appointmentId}/check-in:
     post:
       operationId: checkIn
@@ -1048,6 +1084,12 @@ components:
         purchase_price: { $ref: '#/components/schemas/Money' }
         monthly_rental_income: { $ref: '#/components/schemas/Money' }
         monthly_expenses: { $ref: '#/components/schemas/Money' }
+        outstanding_debt:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          description: 'Remaining mortgage principal (a stock/balance). Optional; absent = paid off or cash purchase. Investor-entered, never estimated.'
+        monthly_mortgage_payment:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          description: 'Monthly installment (a flow/payment). Optional; absent = paid off or cash purchase. Investor-entered, never estimated.'
         status: { type: string, enum: [watching, offer_made, owned], default: watching, description: CLOSED }
     PortfolioEntryUpdate:
       type: object
@@ -1055,6 +1097,8 @@ components:
         purchase_price: { $ref: '#/components/schemas/Money' }
         monthly_rental_income: { $ref: '#/components/schemas/Money' }
         monthly_expenses: { $ref: '#/components/schemas/Money' }
+        outstanding_debt: { $ref: '#/components/schemas/Money' }
+        monthly_mortgage_payment: { $ref: '#/components/schemas/Money' }
         status: { type: string, enum: [watching, offer_made, owned], description: CLOSED }
     PortfolioEntry:
       allOf:
@@ -1067,6 +1111,10 @@ components:
             current_value_estimate:
               allOf: [{ $ref: '#/components/schemas/Money' }]
               description: 'Server-computed from comparable listings. Absent (not null-as-zero) until enough comps exist to estimate. Never client-supplied.'
+            current_value_estimate_computed_at:
+              type: [string, 'null']
+              format: date-time
+              description: 'When the valuation job last ran for this entry — stamped even when the number did not change. Null only if valuation has never run. Use it to caveat ("as of …") or suppress projections built on a stale estimate.'
     RequirementProfileInput:
       type: object
       properties:

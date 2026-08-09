@@ -2,6 +2,7 @@ import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { ConfigService } from '@nestjs/config';
 import { sql } from 'kysely';
 import { Db } from '../src/shared/database/db.service';
+import { TestClock } from '../src/shared/jobs/clock';
 import { ContactsService } from '../src/modules/contacts/contacts.service';
 import { PortfolioService } from '../src/modules/portfolio/portfolio.service';
 import { ValuationService } from '../src/modules/portfolio/valuation.service';
@@ -10,6 +11,7 @@ const uuid = () => crypto.randomUUID();
 
 describe('portfolio (#29)', () => {
   let db: Db;
+  let clock: TestClock;
   let portfolio: PortfolioService;
   let valuation: ValuationService;
   let contacts: ContactsService;
@@ -20,8 +22,9 @@ describe('portfolio (#29)', () => {
 
   beforeAll(() => {
     db = new Db(new ConfigService());
+    clock = new TestClock(new Date('2026-08-16T12:00:00Z'));
     valuation = new ValuationService(db);
-    portfolio = new PortfolioService(db, valuation);
+    portfolio = new PortfolioService(db, valuation, clock);
     contacts = new ContactsService(db);
   });
 
@@ -74,9 +77,15 @@ describe('portfolio (#29)', () => {
       purchase_price: { amount: '250000.00', currency: 'EUR' },
       monthly_rental_income: { amount: '1100.00', currency: 'EUR' },
       monthly_expenses: { amount: '210.50', currency: 'EUR' },
+      outstanding_debt: { amount: '180000.00', currency: 'EUR' },
+      monthly_mortgage_payment: { amount: '820.00', currency: 'EUR' },
     });
     expect(entry.status).toBe('watching');
     expect(entry.current_value_estimate).toBeUndefined(); // no comps → absent
+    // …but computed_at is stamped anyway: the valuation RAN at creation.
+    expect(entry.current_value_estimate_computed_at).not.toBeNull();
+    expect(entry.outstanding_debt).toEqual({ amount: '180000.00', currency: 'EUR' });
+    expect(entry.monthly_mortgage_payment).toEqual({ amount: '820.00', currency: 'EUR' });
 
     await expect(
       portfolio.add(contactId, {
@@ -156,7 +165,7 @@ describe('portfolio (#29)', () => {
     expect(await valuation.estimateValue(subject)).toBeUndefined();
   });
 
-  it('refreshValuations emits only on actual change', async () => {
+  it('refreshValuations emits only on actual change but stamps computed_at every run', async () => {
     const contactId = await contacts.resolveOrProvision(`kc-${uuid()}`);
     const subject = await fixtureProperty({ dLng: -0.25, listed: false }); // fresh area
     for (let i = 0; i < 5; i++) {
@@ -167,12 +176,6 @@ describe('portfolio (#29)', () => {
         price: `${(2800 + i * 100) * 100}.00`, // 2800..3200 €/m², median 3000
       });
     }
-    await portfolio.add(contactId, {
-      property_id: subject,
-      purchase_price: { amount: '280000.00', currency: 'EUR' },
-      monthly_rental_income: { amount: '1000.00', currency: 'EUR' },
-      monthly_expenses: { amount: '150.00', currency: 'EUR' },
-    });
 
     const countValuationEvents = async () => {
       const rows = await db.kysely
@@ -183,17 +186,29 @@ describe('portfolio (#29)', () => {
       return Number(rows.n);
     };
 
+    // Comps exist → the inline first valuation at add() emits (null → value).
     const before = await countValuationEvents();
-    const first = await portfolio.refreshValuations();
-    expect(first).toBeGreaterThanOrEqual(1); // this entry got its first estimate
-    const afterFirst = await countValuationEvents();
-    expect(afterFirst).toBeGreaterThan(before);
+    const entry = await portfolio.add(contactId, {
+      property_id: subject,
+      purchase_price: { amount: '280000.00', currency: 'EUR' },
+      monthly_rental_income: { amount: '1000.00', currency: 'EUR' },
+      monthly_expenses: { amount: '150.00', currency: 'EUR' },
+    });
+    expect(entry.current_value_estimate?.amount).toBe('300000.00');
+    const afterAdd = await countValuationEvents();
+    expect(afterAdd).toBe(before + 1);
+    const computedAtCreation = entry.current_value_estimate_computed_at!;
 
-    // No data changed → a re-run must be silent for this entry.
+    // No data changed → the run is silent, but computed_at still advances:
+    // the client uses it to trust (or caveat) FIRE projections.
+    clock.advance(3_600_000);
     await portfolio.refreshValuations();
-    // (Other suites' entries could theoretically move, but within this serial
-    // test file nothing changed between the two runs.)
-    expect(await countValuationEvents()).toBe(afterFirst);
+    expect(await countValuationEvents()).toBe(afterAdd);
+    const afterSilent = (await portfolio.list(contactId)).items[0];
+    expect(afterSilent.current_value_estimate?.amount).toBe('300000.00');
+    expect(
+      new Date(afterSilent.current_value_estimate_computed_at!).getTime(),
+    ).toBeGreaterThan(new Date(computedAtCreation).getTime());
 
     // A sixth comp at 4000 €/m² interpolates the median to 3050 → one more
     // event carrying old and new.

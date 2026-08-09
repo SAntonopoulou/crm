@@ -68,6 +68,19 @@ npx @redocly/cli lint api/openapi/*.yaml
 
 ## Changelog
 
+### crm-v1.yaml 1.2.0 — 2026-08-09
+
+- **Additive:** open-house registration —
+  `POST /appointments/{id}/register` (position + confirmed/waitlisted) and
+  `POST /appointments/{id}/unregister` (auto-promotion of the next
+  waitlisted viewer, who receives a notification).
+- **Additive (client-team portfolio delta):** `PortfolioEntry` gains optional
+  investor-entered `outstanding_debt` (stock) and `monthly_mortgage_payment`
+  (flow) for equity / net-cash-flow display, plus
+  `current_value_estimate_computed_at` — stamped on every valuation run even
+  when the number is unchanged, so stale estimates can be caveated or
+  suppressed in projections (FIRE screen).
+
 ### crm-v1.yaml 1.1.0 — 2026-08-09
 
 Coordinated amendment from the client-team reconciliation

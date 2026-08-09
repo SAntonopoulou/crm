@@ -16,6 +16,8 @@ import { AppointmentsService } from '../appointments/appointments.service';
 
 export const JOB_DISPATCH_START = 'dispatch.start';
 export const JOB_OFFER_TTL = 'dispatch.offer_ttl';
+export const JOB_AGENT_WITHDRAW = 'dispatch.agent_withdraw';
+export const JOB_APPOINTMENT_REMINDER = 'appointment.reminder';
 
 interface DispatchConfig {
   strategy: 'waterfall' | 'broadcast' | 'hybrid';
@@ -150,6 +152,7 @@ export class DispatchService {
       capacity: number;
       languages: string[];
       recent_offers: string;
+      rating: string;
     }>`
       SELECT ap.contact_id AS agent_id,
              MIN(CASE WHEN ca.area IS NOT NULL
@@ -161,9 +164,11 @@ export class DispatchService {
              ap.languages,
              (SELECT count(*) FROM core.dispatch_offer o
                WHERE o.agent_id = ap.contact_id
-                 AND o.created_at > ${this.clock.now()}::timestamptz - interval '7 days')::text AS recent_offers
+                 AND o.created_at > ${this.clock.now()}::timestamptz - interval '7 days')::text AS recent_offers,
+             COALESCE(sc.score, 0.5)::text AS rating
         FROM core.agent_profile ap
         JOIN core.coverage_area ca ON ca.agent_id = ap.contact_id
+        LEFT JOIN core.agent_scorecard sc ON sc.agent_id = ap.contact_id
         JOIN core.appointment a ON a.id = ${info.appointment_id}
         JOIN core.property p ON p.id = a.property_id
        WHERE ap.state = 'active'
@@ -174,7 +179,7 @@ export class DispatchService {
          )
          AND NOT EXISTS (SELECT 1 FROM core.agent_absence ab
                WHERE ab.agent_id = ap.contact_id AND ab.during && a.during)
-       GROUP BY ap.contact_id, ap.capacity_max_active, ap.languages
+       GROUP BY ap.contact_id, ap.capacity_max_active, ap.languages, sc.score
     `.execute(this.db.kysely);
 
     const w = this.config.weights;
@@ -185,7 +190,7 @@ export class DispatchService {
         const components = {
           distance: w.distance * (1 - Math.min(meters / (radiusKm * 1000), 1)),
           load: w.load * (1 - Number(r.load) / r.capacity),
-          rating: w.rating * 0.5, // neutral until the scorecard MV ships
+          rating: w.rating * Number(r.rating), // scorecard MV; 0.5 = no history
           language: w.language * (r.languages.includes(info.locale) ? 1 : 0),
           fairness: w.fairness * (1 / (1 + Number(r.recent_offers))),
         };
@@ -559,7 +564,159 @@ export class DispatchService {
     }
 
     for (const dedupeId of cancelJobs) await this.jobs?.cancel(dedupeId);
+
+    // Arm the T-24h / T-2h reminders for both parties.
+    const claimed = await this.db.kysely
+      .selectFrom('core.appointment')
+      .select([sql<Date>`lower(during)`.as('starts_at')])
+      .where('id', '=', dispatch.appointment_id)
+      .executeTakeFirstOrThrow();
+    for (const [tag, offsetMs] of [
+      ['24h', 24 * 3_600_000],
+      ['2h', 2 * 3_600_000],
+    ] as const) {
+      const runAt = new Date(claimed.starts_at.getTime() - offsetMs);
+      if (runAt.getTime() > now.getTime()) {
+        await this.jobs?.schedule(
+          JOB_APPOINTMENT_REMINDER,
+          { appointmentId: dispatch.appointment_id, offset: tag },
+          runAt,
+          { dedupeId: `rem${tag}:${dispatch.appointment_id}` },
+        );
+      }
+    }
     return this.claimResult(offerId);
+  }
+
+  /** Job handler: reminder fires for both parties if the viewing still stands. */
+  async sendReminder(appointmentId: string, offset: '24h' | '2h'): Promise<void> {
+    const appointment = await this.db.kysely
+      .selectFrom('core.appointment')
+      .select(['id', 'state', 'viewer_contact_id', 'agent_id',
+        sql<Date>`lower(during)`.as('starts_at')])
+      .where('id', '=', appointmentId)
+      .executeTakeFirst();
+    if (!appointment || !['booked', 'confirmed'].includes(appointment.state)) return;
+
+    await this.db.tx(async (ctx) => {
+      await ctx.emit({
+        aggregateType: 'appointment',
+        aggregateId: appointmentId,
+        eventType: 'appointment.reminder_due',
+        payload: { offset },
+      });
+    });
+    const recipients = [appointment.viewer_contact_id, appointment.agent_id].filter(
+      (id): id is string => id !== null,
+    );
+    for (const contactId of recipients) {
+      await this.jobs?.schedule(
+        'notification.send',
+        {
+          contactId,
+          category: 'transactional',
+          priority: 'high',
+          kind: 'viewing_reminder',
+          payload: {
+            appointment_id: appointmentId,
+            starts_at: appointment.starts_at.toISOString(),
+            offset,
+          },
+        },
+        this.clock.now(),
+      );
+    }
+  }
+
+  /**
+   * Agent withdrawal. Before the viewing: strip the agent, revoke the
+   * access grant, revoke attribution, return the appointment to
+   * `dispatching` and start a fresh dispatch — the viewer keeps the slot.
+   * At/after the viewing time: record the agent no-show instead.
+   */
+  async agentWithdraw(
+    appointmentId: string,
+    reason: 'cancelled' | 'no_show',
+  ): Promise<'redispatched' | 'no_show_recorded' | 'noop'> {
+    const now = this.clock.now();
+    const outcome = await this.db.tx(async (ctx) => {
+      const appointment = await ctx.trx
+        .selectFrom('core.appointment')
+        .select(['id', 'state', 'agent_id', 'viewer_contact_id', 'property_id',
+          sql<Date>`lower(during)`.as('starts_at')])
+        .where('id', '=', appointmentId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!appointment?.agent_id) return 'noop' as const;
+      if (!['booked', 'confirmed'].includes(appointment.state)) return 'noop' as const;
+
+      const agentId = appointment.agent_id;
+      // Purpose-bound grant dies with the assignment, either way.
+      await ctx.trx
+        .updateTable('core.access_grant')
+        .set({ revoked_at: now })
+        .where('appointment_id', '=', appointmentId)
+        .where('grantee_agent_id', '=', agentId)
+        .where('revoked_at', 'is', null)
+        .execute();
+      await ctx.trx
+        .updateTable('core.attribution')
+        .set({ state: 'revoked' })
+        .where('buyer_contact_id', '=', appointment.viewer_contact_id)
+        .where('property_id', '=', appointment.property_id)
+        .where('state', '=', 'active')
+        .execute();
+
+      const redispatch = reason === 'cancelled' && appointment.starts_at > now;
+      if (redispatch) {
+        await ctx.trx
+          .updateTable('core.appointment')
+          .set({ agent_id: null, state: 'dispatching' })
+          .where('id', '=', appointmentId)
+          .execute();
+        await ctx.emit({
+          aggregateType: 'appointment',
+          aggregateId: appointmentId,
+          eventType: 'appointment.state_changed',
+          payload: { from: appointment.state, to: 'dispatching', by_party: 'agent' },
+        });
+        return 'redispatched' as const;
+      }
+
+      await ctx.trx
+        .updateTable('core.appointment')
+        .set({ state: 'no_show', cancelled_by: 'agent' })
+        .where('id', '=', appointmentId)
+        .execute();
+      await ctx.trx
+        .insertInto('core.viewing_outcome')
+        .values({ appointment_id: appointmentId, outcome: 'no_show_agent' })
+        .onConflict((oc) => oc.column('appointment_id').doNothing())
+        .execute();
+      await ctx.trx
+        .insertInto('core.task')
+        .values({
+          kind: 'agent_no_show_review',
+          detail: JSON.stringify({ appointment_id: appointmentId, agent_id: agentId }),
+          due_at: now,
+        })
+        .execute();
+      await ctx.emit({
+        aggregateType: 'appointment',
+        aggregateId: appointmentId,
+        eventType: 'appointment.state_changed',
+        payload: { from: appointment.state, to: 'no_show', by_party: 'agent' },
+      });
+      return 'no_show_recorded' as const;
+    });
+
+    if (outcome === 'redispatched') {
+      for (const tag of ['24h', '2h']) {
+        await this.jobs?.cancel(`rem${tag}:${appointmentId}`);
+      }
+      await this.startDispatch(appointmentId);
+    }
+    return outcome;
   }
 
   private async claimResult(offerId: string): Promise<ClaimResult> {

@@ -153,13 +153,50 @@ export class AppointmentsController {
     @Param('appointmentId', ParseUUIDPipe) appointmentId: string,
     @Body() body: CancelDto,
   ) {
+    const contactId = await this.contactId(req);
+    const current = (await this.appointments.getAppointment(appointmentId)) as {
+      agent?: { contact_id: string };
+    };
+    if (current.agent?.contact_id === contactId) {
+      // The assigned agent backing out is a withdrawal, not a cancellation:
+      // the viewer keeps the slot and dispatch finds a replacement.
+      await this.appointments.scheduleAgentWithdrawal(appointmentId);
+      return {
+        appointment: await this.appointments.getAppointment(appointmentId),
+        penalty_applied: false,
+      };
+    }
     await this.appointments.transition(appointmentId, 'cancelled', {
       byParty: 'viewer',
       reason: body.reason,
-      actorId: await this.contactId(req),
+      actorId: contactId,
     });
     const appointment = await this.appointments.getAppointment(appointmentId);
     return { appointment, penalty_applied: (appointment as { penalty_applied?: boolean }).penalty_applied ?? false };
+  }
+
+  @Post('appointments/:appointmentId/register')
+  @HttpCode(201)
+  async registerOpenHouse(
+    @Req() req: AuthedRequest,
+    @Param('appointmentId', ParseUUIDPipe) appointmentId: string,
+  ) {
+    return this.appointments.registerForOpenHouse(
+      appointmentId,
+      await this.contactId(req),
+    );
+  }
+
+  @Post('appointments/:appointmentId/unregister')
+  @HttpCode(204)
+  async unregisterOpenHouse(
+    @Req() req: AuthedRequest,
+    @Param('appointmentId', ParseUUIDPipe) appointmentId: string,
+  ) {
+    await this.appointments.unregisterFromOpenHouse(
+      appointmentId,
+      await this.contactId(req),
+    );
   }
 
   @Post('appointments/:appointmentId/check-in')

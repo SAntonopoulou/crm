@@ -56,6 +56,16 @@ export class PortfolioEntryInputDto {
   monthly_expenses!: MoneyDto;
 
   @IsOptional()
+  @ValidateNested()
+  @TransformType(() => MoneyDto)
+  outstanding_debt?: MoneyDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @TransformType(() => MoneyDto)
+  monthly_mortgage_payment?: MoneyDto;
+
+  @IsOptional()
   @IsIn(['watching', 'offer_made', 'owned'])
   status?: 'watching' | 'offer_made' | 'owned';
 }
@@ -75,6 +85,16 @@ export class PortfolioEntryUpdateDto {
   @ValidateNested()
   @TransformType(() => MoneyDto)
   monthly_expenses?: MoneyDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @TransformType(() => MoneyDto)
+  outstanding_debt?: MoneyDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @TransformType(() => MoneyDto)
+  monthly_mortgage_payment?: MoneyDto;
 
   @IsOptional()
   @IsIn(['watching', 'offer_made', 'owned'])

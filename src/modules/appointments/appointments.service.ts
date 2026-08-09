@@ -400,6 +400,130 @@ export class AppointmentsService {
     return out;
   }
 
+  /**
+   * Open-house registration: positions within capacity are confirmed
+   * attendees, the rest are waitlisted. Capacity null = unlimited.
+   */
+  async registerForOpenHouse(
+    appointmentId: string,
+    contactId: string,
+  ): Promise<{ position: number; confirmed: boolean }> {
+    return this.db.tx(async (ctx) => {
+      const appointment = await ctx.trx
+        .selectFrom('core.appointment')
+        .select(['id', 'kind', 'state', 'capacity'])
+        .where('id', '=', appointmentId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!appointment) throw new NotFoundException({ code: 'appointment_not_found' });
+      if (appointment.kind !== 'open_house') {
+        throw new ConflictException({ code: 'not_open_house' });
+      }
+      if (!['dispatching', 'unstaffed', 'booked', 'confirmed'].includes(appointment.state)) {
+        throw new ConflictException({ code: 'state_conflict' });
+      }
+
+      const existing = await ctx.trx
+        .selectFrom('core.waitlist_entry')
+        .select('position')
+        .where('appointment_id', '=', appointmentId)
+        .where('contact_id', '=', contactId)
+        .executeTakeFirst();
+      let position: number;
+      if (existing) {
+        position = existing.position;
+      } else {
+        const max = await ctx.trx
+          .selectFrom('core.waitlist_entry')
+          .select(sql<string>`COALESCE(max(position), 0)`.as('max'))
+          .where('appointment_id', '=', appointmentId)
+          .executeTakeFirstOrThrow();
+        position = Number(max.max) + 1;
+        await ctx.trx
+          .insertInto('core.waitlist_entry')
+          .values({ appointment_id: appointmentId, contact_id: contactId, position })
+          .execute();
+      }
+      const confirmed =
+        appointment.capacity === null || position <= appointment.capacity;
+      await ctx.emit({
+        aggregateType: 'appointment',
+        aggregateId: appointmentId,
+        eventType: 'appointment.open_house_registered',
+        payload: { position, confirmed },
+      });
+      return { position, confirmed };
+    });
+  }
+
+  /** Unregister; the first waitlisted viewer (if any) is promoted and notified. */
+  async unregisterFromOpenHouse(
+    appointmentId: string,
+    contactId: string,
+  ): Promise<void> {
+    const promoted = await this.db.tx(async (ctx) => {
+      const appointment = await ctx.trx
+        .selectFrom('core.appointment')
+        .select(['id', 'capacity'])
+        .where('id', '=', appointmentId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!appointment) throw new NotFoundException({ code: 'appointment_not_found' });
+
+      const confirmedBefore = await this.confirmedSet(ctx, appointmentId, appointment.capacity);
+      const deleted = await ctx.trx
+        .deleteFrom('core.waitlist_entry')
+        .where('appointment_id', '=', appointmentId)
+        .where('contact_id', '=', contactId)
+        .returning('id')
+        .executeTakeFirst();
+      if (!deleted) throw new NotFoundException({ code: 'not_registered' });
+
+      const confirmedAfter = await this.confirmedSet(ctx, appointmentId, appointment.capacity);
+      return [...confirmedAfter].filter(
+        (id) => !confirmedBefore.has(id) && id !== contactId,
+      );
+    });
+    for (const contact of promoted) {
+      await this.jobs?.schedule(
+        'notification.send',
+        {
+          contactId: contact,
+          category: 'transactional',
+          priority: 'high',
+          kind: 'open_house_promoted',
+          payload: { appointment_id: appointmentId },
+        },
+        this.clock.now(),
+      );
+    }
+  }
+
+  private async confirmedSet(
+    ctx: TxContext,
+    appointmentId: string,
+    capacity: number | null,
+  ): Promise<Set<string>> {
+    const rows = await ctx.trx
+      .selectFrom('core.waitlist_entry')
+      .select(['contact_id'])
+      .where('appointment_id', '=', appointmentId)
+      .orderBy('position')
+      .execute();
+    const cut = capacity === null ? rows.length : capacity;
+    return new Set(rows.slice(0, cut).map((r) => r.contact_id));
+  }
+
+  /** Agent-initiated withdrawal runs in the dispatch module via the job seam. */
+  async scheduleAgentWithdrawal(appointmentId: string): Promise<void> {
+    await this.jobs?.schedule(
+      'dispatch.agent_withdraw',
+      { appointmentId, reason: 'cancelled' },
+      this.clock.now(),
+      { dedupeId: `withdraw:${appointmentId}` },
+    );
+  }
+
   /** Central guarded transition with side effects. */
   async transition(
     appointmentId: string,

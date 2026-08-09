@@ -2,7 +2,11 @@ import { Module, OnModuleInit } from '@nestjs/common';
 import { JobRegistry } from '../../shared/jobs/job-scheduler';
 import { ContactsModule } from '../contacts/contacts.module';
 import { AgentProfileController } from './agents.controller';
-import { AgentsService, JOB_DOC_LAPSE_CHECK } from './agents.service';
+import {
+  AgentsService,
+  JOB_DOC_LAPSE_CHECK,
+  JOB_SCORECARD_REFRESH,
+} from './agents.service';
 
 @Module({
   imports: [ContactsModule],
@@ -20,5 +24,8 @@ export class AgentsModule implements OnModuleInit {
     this.registry.register(JOB_DOC_LAPSE_CHECK, async () => {
       await this.agents.runDocLapseCheck();
     });
+    this.registry.register(JOB_SCORECARD_REFRESH, () =>
+      this.agents.refreshScorecard(),
+    );
   }
 }

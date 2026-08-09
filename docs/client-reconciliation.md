@@ -1,5 +1,15 @@
 # CRM response — client reconciliation of 2026-08-09
 
+> **Delta accepted (later the same day):** the portfolio update landed in
+> contract 1.2.0 — `outstanding_debt` + `monthly_mortgage_payment`
+> (optional, investor-entered, stock vs. flow kept separate as asked) and
+> `current_value_estimate_computed_at` (stamped on every valuation run,
+> including no-change runs; new entries get an inline first valuation so the
+> field is never null after creation). The Portfolio/Watchlist tab split is
+> noted as the client's mental model — if per-status endpoints ever appear,
+> they will follow that split rather than invent a third shape. One list,
+> one `GET /me/portfolio`, stands.
+
 Response to the client team's reconciliation document. Contract changes shipped
 as **crm-v1.yaml 1.1.0** (see [api/README.md changelog](../api/README.md#changelog)).
 Item numbers follow the client doc.
