@@ -48,6 +48,45 @@ export interface CoreActivity {
   property_id: string | null;
 }
 
+export interface CoreAppointment {
+  agent_id: string | null;
+  cancel_reason: string | null;
+  cancelled_by: string | null;
+  capacity: number | null;
+  created_at: Generated<Timestamp>;
+  during: string;
+  id: Generated<string>;
+  kind: Generated<string>;
+  listing_id: string;
+  notes: string | null;
+  one_time_code: string | null;
+  penalty_applied: boolean | null;
+  property_id: string;
+  state: Generated<string>;
+  sync_seq: Generated<Int8>;
+  updated_at: Generated<Timestamp>;
+  viewer_contact_id: string;
+}
+
+export interface CoreAppointmentFeedback {
+  appointment_id: string;
+  author_role: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  shared_with_owner: Generated<boolean>;
+  structured: Generated<Json>;
+}
+
+export interface CoreAttendanceProof {
+  appointment_id: string;
+  at: Generated<Timestamp>;
+  direction: string;
+  evidence: Generated<Json>;
+  id: Generated<string>;
+  method: string;
+  party: string;
+}
+
 export interface CoreContact {
   created_at: Generated<Timestamp>;
   dek_id: string | null;
@@ -311,6 +350,18 @@ export interface CoreProperty {
   updated_at: Generated<Timestamp>;
 }
 
+export interface CorePropertyAccessRule {
+  blackout_windows: Generated<Json>;
+  key_holder_contact_id: string | null;
+  lockbox_ref: string | null;
+  min_notice_hours: number | null;
+  occupancy: string | null;
+  property_id: string;
+  slot_minutes: Generated<number>;
+  updated_at: Generated<Timestamp>;
+  viewing_hours: Generated<Json>;
+}
+
 export interface CorePropertyDocument {
   created_at: Generated<Timestamp>;
   expires_at: Timestamp | null;
@@ -370,6 +421,17 @@ export interface CoreRequirementProfile {
   updated_at: Generated<Timestamp>;
 }
 
+export interface CoreSlotHold {
+  created_at: Generated<Timestamp>;
+  during: string;
+  expires_at: Timestamp;
+  id: Generated<string>;
+  listing_id: string;
+  property_id: string;
+  state: Generated<string>;
+  viewer_contact_id: string;
+}
+
 export interface CoreSource {
   created_at: Generated<Timestamp>;
   default_lawful_basis: Generated<string>;
@@ -417,9 +479,28 @@ export interface CoreTombstone {
   sync_seq: Generated<Int8>;
 }
 
+export interface CoreViewingOutcome {
+  appointment_id: string;
+  created_at: Generated<Timestamp>;
+  notes: string | null;
+  outcome: string;
+  routed_pipeline_item_id: string | null;
+}
+
+export interface CoreWaitlistEntry {
+  appointment_id: string;
+  contact_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  position: number;
+}
+
 export interface DB {
   "audit.pii_access_log": AuditPiiAccessLog;
   "core.activity": CoreActivity;
+  "core.appointment": CoreAppointment;
+  "core.appointment_feedback": CoreAppointmentFeedback;
+  "core.attendance_proof": CoreAttendanceProof;
   "core.contact": CoreContact;
   "core.contact_channel": CoreContactChannel;
   "core.contact_merge": CoreContactMerge;
@@ -443,14 +524,18 @@ export interface DB {
   "core.pipeline_stage": CorePipelineStage;
   "core.portfolio_entry": CorePortfolioEntry;
   "core.property": CoreProperty;
+  "core.property_access_rule": CorePropertyAccessRule;
   "core.property_document": CorePropertyDocument;
   "core.property_merge": CorePropertyMerge;
   "core.property_party": CorePropertyParty;
   "core.quarantine_item": CoreQuarantineItem;
   "core.requirement_profile": CoreRequirementProfile;
+  "core.slot_hold": CoreSlotHold;
   "core.source": CoreSource;
   "core.stage_transition": CoreStageTransition;
   "core.suppression_entry": CoreSuppressionEntry;
   "core.task": CoreTask;
   "core.tombstone": CoreTombstone;
+  "core.viewing_outcome": CoreViewingOutcome;
+  "core.waitlist_entry": CoreWaitlistEntry;
 }

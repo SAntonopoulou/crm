@@ -9,6 +9,7 @@ import { ContactsModule } from './modules/contacts/contacts.module';
 import { PropertiesModule } from './modules/properties/properties.module';
 import { PortfolioModule } from './modules/portfolio/portfolio.module';
 import { PipelinesModule } from './modules/pipelines/pipelines.module';
+import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { PiiAccessInterceptor } from './shared/audit/pii-access.interceptor';
 import { VersionGateMiddleware } from './shared/auth/version-gate.middleware';
 
@@ -22,6 +23,7 @@ import { VersionGateMiddleware } from './shared/auth/version-gate.middleware';
     PropertiesModule,
     PortfolioModule,
     PipelinesModule,
+    AppointmentsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_INTERCEPTOR, useClass: PiiAccessInterceptor }],
