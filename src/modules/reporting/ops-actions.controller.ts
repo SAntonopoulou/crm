@@ -14,7 +14,9 @@ import { AgentsService } from '../agents/agents.service';
 import { ContactsService } from '../contacts/contacts.service';
 import { DispatchService } from '../dispatch/dispatch.service';
 import { IngestService } from '../properties/ingest.service';
+import { BreachService, BreachState } from '../privacy/breach.service';
 import { PrivacyService } from '../privacy/privacy.service';
+import { SecurityService } from '../privacy/security.service';
 
 export class QuarantineResolveDto {
   @IsIn(['accept', 'reject'])
@@ -59,6 +61,8 @@ export class OpsActionsController {
     private readonly dispatch: DispatchService,
     private readonly privacy: PrivacyService,
     private readonly agents: AgentsService,
+    private readonly security: SecurityService,
+    private readonly breach: BreachService,
   ) {}
 
   private staffId(req: AuthedRequest): Promise<string> {
@@ -150,5 +154,110 @@ export class OpsActionsController {
   @HttpCode(204)
   async reinstateAgent(@Param('agentId', ParseUUIDPipe) agentId: string) {
     await this.agents.transition(agentId, 'active');
+  }
+
+  // ── Account recovery (dual approval) ───────────────────────────────
+
+  @Post('recovery')
+  async openRecovery(
+    @Req() req: AuthedRequest,
+    @Body() body: { contact_id: string; reason: string },
+  ) {
+    return {
+      id: await this.security.openRecovery(
+        body.contact_id, body.reason, await this.staffId(req),
+      ),
+    };
+  }
+
+  @Post('recovery/:recoveryId/approve')
+  async approveRecovery(
+    @Req() req: AuthedRequest,
+    @Param('recoveryId', ParseUUIDPipe) recoveryId: string,
+  ) {
+    return { state: await this.security.approveRecovery(recoveryId, await this.staffId(req)) };
+  }
+
+  @Post('recovery/:recoveryId/complete')
+  async completeRecovery(
+    @Req() req: AuthedRequest,
+    @Param('recoveryId', ParseUUIDPipe) recoveryId: string,
+  ) {
+    const unlockedAt = await this.security.completeRecovery(recoveryId, await this.staffId(req));
+    return { payout_change_unlocked_at: unlockedAt.toISOString() };
+  }
+
+  // ── Bulk export controls ───────────────────────────────────────────
+
+  @Post('exports')
+  async requestExport(
+    @Req() req: AuthedRequest,
+    @Body() body: { criteria: Record<string, unknown> },
+  ) {
+    return { id: await this.security.requestExport(await this.staffId(req), body.criteria) };
+  }
+
+  @Post('exports/:exportId/approve')
+  @HttpCode(204)
+  async approveExport(
+    @Req() req: AuthedRequest,
+    @Param('exportId', ParseUUIDPipe) exportId: string,
+  ) {
+    await this.security.approveExport(exportId, await this.staffId(req));
+  }
+
+  @Post('exports/:exportId/deliver')
+  async deliverExport(
+    @Req() req: AuthedRequest,
+    @Param('exportId', ParseUUIDPipe) exportId: string,
+  ) {
+    return {
+      storage_key: await this.security.deliverExport(exportId, await this.staffId(req)),
+    };
+  }
+
+  @Post('contacts/:contactId/revoke-sessions')
+  @HttpCode(204)
+  async revokeSessions(
+    @Req() req: AuthedRequest,
+    @Param('contactId', ParseUUIDPipe) contactId: string,
+  ) {
+    await this.security.revokeSessions(contactId, await this.staffId(req));
+  }
+
+  // ── Breach incidents ───────────────────────────────────────────────
+
+  @Post('breaches')
+  async openBreach(
+    @Req() req: AuthedRequest,
+    @Body() body: { note: string; detected_at?: string },
+  ) {
+    return this.breach.openIncident(
+      await this.staffId(req),
+      body.note,
+      body.detected_at ? new Date(body.detected_at) : undefined,
+    );
+  }
+
+  @Post('breaches/:incidentId/transition')
+  @HttpCode(204)
+  async transitionBreach(
+    @Req() req: AuthedRequest,
+    @Param('incidentId', ParseUUIDPipe) incidentId: string,
+    @Body() body: { to: BreachState; note: string },
+  ) {
+    await this.breach.transition(incidentId, body.to, await this.staffId(req), body.note);
+  }
+
+  @Post('breaches/:incidentId/notify-subjects')
+  @HttpCode(204)
+  async notifyBreachSubjects(
+    @Req() req: AuthedRequest,
+    @Param('incidentId', ParseUUIDPipe) incidentId: string,
+    @Body() body: { contact_ids: string[]; summary: string },
+  ) {
+    await this.breach.notifySubjects(
+      incidentId, body.contact_ids, await this.staffId(req), body.summary,
+    );
   }
 }

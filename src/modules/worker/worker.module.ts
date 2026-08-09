@@ -53,6 +53,7 @@ export class JobsRuntime implements OnModuleInit, OnModuleDestroy {
       ['agents.doc_lapse_check', { pattern: '0 6 * * *' }],
       ['agents.scorecard_refresh', { pattern: '30 * * * *' }],
       ['portfolio.revalue', { pattern: '0 * * * *' }],
+      ['calendar.import_all', { every: 1_800_000 }],
     ];
     for (const [name, repeat] of repeatables) {
       await this.queue.upsertJobScheduler(

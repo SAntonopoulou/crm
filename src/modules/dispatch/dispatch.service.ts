@@ -565,6 +565,13 @@ export class DispatchService {
 
     for (const dedupeId of cancelJobs) await this.jobs?.cancel(dedupeId);
 
+    // Mirror the viewing into the agent's connected calendars.
+    await this.jobs?.schedule(
+      'calendar.push_event',
+      { appointmentId: dispatch.appointment_id, agentId },
+      now,
+    );
+
     // Arm the T-24h / T-2h reminders for both parties.
     const claimed = await this.db.kysely
       .selectFrom('core.appointment')
@@ -710,6 +717,13 @@ export class DispatchService {
       return 'no_show_recorded' as const;
     });
 
+    if (outcome === 'redispatched' || outcome === 'no_show_recorded') {
+      await this.jobs?.schedule(
+        'calendar.remove_event',
+        { appointmentId },
+        this.clock.now(),
+      );
+    }
     if (outcome === 'redispatched') {
       for (const tag of ['24h', '2h']) {
         await this.jobs?.cancel(`rem${tag}:${appointmentId}`);

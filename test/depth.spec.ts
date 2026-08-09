@@ -64,6 +64,8 @@ describe('product depth: reminders, re-dispatch, waitlist, scorecard (#36–38)'
       sentNotifications.push({ contactId: payload.contactId, kind: payload.kind });
     });
     registry.register('notification.dispatch_offer', async () => {});
+    registry.register('calendar.push_event', async () => {});
+    registry.register('calendar.remove_event', async () => {});
   });
 
   afterAll(async () => {

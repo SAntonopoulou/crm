@@ -23,6 +23,7 @@ const DAY = 24 * 3_600_000;
 
 class FakeIdp extends IdpAdminPort {
   deleted: string[] = [];
+  sessionsRevoked: string[] = [];
   failNext = false;
   async deleteSubject(subjectId: string): Promise<void> {
     if (this.failNext) {
@@ -30,6 +31,9 @@ class FakeIdp extends IdpAdminPort {
       throw new Error('keycloak down');
     }
     this.deleted.push(subjectId);
+  }
+  async revokeSubjectSessions(subjectId: string): Promise<void> {
+    this.sessionsRevoked.push(subjectId);
   }
 }
 

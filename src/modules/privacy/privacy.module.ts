@@ -3,6 +3,7 @@ import { JobRegistry } from '../../shared/jobs/job-scheduler';
 import { ContactsModule } from '../contacts/contacts.module';
 import { PlatformModule } from '../platform/platform.module';
 import { PropertiesModule } from '../properties/properties.module';
+import { BreachService, JOB_BREACH_WARNING } from './breach.service';
 import { PrivacyController } from './privacy.controller';
 import {
   IdpAdminPort,
@@ -14,21 +15,25 @@ import {
   LoggingKms,
   PrivacyService,
 } from './privacy.service';
+import { SecurityService } from './security.service';
 
 @Module({
   imports: [ContactsModule, PropertiesModule, PlatformModule],
   providers: [
     PrivacyService,
+    SecurityService,
+    BreachService,
     { provide: IdpAdminPort, useClass: LoggingIdpAdmin },
     { provide: KmsPort, useClass: LoggingKms },
   ],
   controllers: [PrivacyController],
-  exports: [PrivacyService],
+  exports: [PrivacyService, SecurityService, BreachService],
 })
 export class PrivacyModule implements OnModuleInit {
   constructor(
     private readonly registry: JobRegistry,
     private readonly privacy: PrivacyService,
+    private readonly breach: BreachService,
   ) {}
 
   onModuleInit(): void {
@@ -41,5 +46,8 @@ export class PrivacyModule implements OnModuleInit {
     this.registry.register(JOB_RETENTION_SWEEP, async () => {
       await this.privacy.runRetentionSweep();
     });
+    this.registry.register(JOB_BREACH_WARNING, (p) =>
+      this.breach.deadlineWarning((p as { incidentId: string }).incidentId),
+    );
   }
 }

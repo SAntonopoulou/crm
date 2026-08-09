@@ -58,6 +58,9 @@ describe('geocoding & ops actions (#34, #35)', () => {
     });
     registry.register('dispatch.offer_ttl', async () => {});
     registry.register('notification.dispatch_offer', async () => {});
+    registry.register('calendar.push_event', async () => {});
+    registry.register('calendar.remove_event', async () => {});
+    registry.register('appointment.reminder', async () => {});
   });
 
   afterAll(async () => {

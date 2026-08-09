@@ -56,6 +56,9 @@ describe('dispatch & attribution (#21)', () => {
       dispatch.expireOffer((p as { offerId: string }).offerId),
     );
     registry.register('notification.dispatch_offer', async () => {}); // real handler in notifications.spec
+    registry.register('calendar.push_event', async () => {}); // real handler in security-calendar.spec
+    registry.register('calendar.remove_event', async () => {});
+    registry.register('appointment.reminder', async () => {});
   });
 
   afterAll(async () => {

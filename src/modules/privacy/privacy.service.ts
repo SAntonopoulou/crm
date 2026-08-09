@@ -19,6 +19,7 @@ export const JOB_RETENTION_SWEEP = 'privacy.retention_sweep';
 /** Keycloak admin port — real adapter configured at deploy time. */
 export abstract class IdpAdminPort {
   abstract deleteSubject(subjectId: string): Promise<void>;
+  abstract revokeSubjectSessions(subjectId: string): Promise<void>;
 }
 
 /** KMS port for crypto-shredding: destroying a DEK invalidates backups too. */
@@ -29,6 +30,9 @@ export abstract class KmsPort {
 export class LoggingIdpAdmin extends IdpAdminPort {
   async deleteSubject(): Promise<void> {
     // Deploy-time adapter required; failing loudly beats silently skipping.
+    throw new Error('IdP admin adapter not configured');
+  }
+  async revokeSubjectSessions(): Promise<void> {
     throw new Error('IdP admin adapter not configured');
   }
 }

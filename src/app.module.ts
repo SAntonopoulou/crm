@@ -19,6 +19,7 @@ import { ReportingModule } from './modules/reporting/reporting.module';
 import { PlatformModule } from './modules/platform/platform.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { WorkerModule } from './modules/worker/worker.module';
+import { CalendarModule } from './modules/calendar/calendar.module';
 import { PiiAccessInterceptor } from './shared/audit/pii-access.interceptor';
 import { VersionGateMiddleware } from './shared/auth/version-gate.middleware';
 
@@ -42,6 +43,7 @@ import { VersionGateMiddleware } from './shared/auth/version-gate.middleware';
     PlatformModule,
     WebhooksModule,
     WorkerModule,
+    CalendarModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_INTERCEPTOR, useClass: PiiAccessInterceptor }],

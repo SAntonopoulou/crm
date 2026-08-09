@@ -167,6 +167,25 @@ export interface CoreAttribution {
   window_ends_at: Timestamp;
 }
 
+export interface CoreCalendarEventLink {
+  appointment_id: string;
+  calendar_link_id: string;
+  created_at: Generated<Timestamp>;
+  external_event_id: string;
+  id: Generated<string>;
+}
+
+export interface CoreCalendarLink {
+  agent_id: string;
+  created_at: Generated<Timestamp>;
+  credentials: Generated<Json>;
+  enabled: Generated<boolean>;
+  external_calendar_id: string | null;
+  id: Generated<string>;
+  provider: string;
+  sync_token: string | null;
+}
+
 export interface CoreChannelPolicy {
   allowed: Generated<boolean>;
   channel: string;
@@ -353,6 +372,17 @@ export interface CoreDispute {
   resolution: Json | null;
   resolved_by: string | null;
   state: Generated<string>;
+}
+
+export interface CoreExportRequest {
+  approved_by: string | null;
+  created_at: Generated<Timestamp>;
+  criteria: Json;
+  id: Generated<string>;
+  requested_by: string;
+  state: Generated<string>;
+  storage_key: string | null;
+  watermark_id: Generated<string>;
 }
 
 export interface CoreFieldPrecedenceRule {
@@ -656,6 +686,17 @@ export interface CoreQuarantineItem {
   state: Generated<string>;
 }
 
+export interface CoreRecoveryRequest {
+  contact_id: string;
+  created_at: Generated<Timestamp>;
+  first_approver: string | null;
+  id: Generated<string>;
+  payout_change_unlocked_at: Timestamp | null;
+  reason: string | null;
+  second_approver: string | null;
+  state: Generated<string>;
+}
+
 export interface CoreRequirementProfile {
   active: Generated<boolean>;
   areas: string | null;
@@ -919,6 +960,8 @@ export interface DB {
   "core.assignment_agreement": CoreAssignmentAgreement;
   "core.attendance_proof": CoreAttendanceProof;
   "core.attribution": CoreAttribution;
+  "core.calendar_event_link": CoreCalendarEventLink;
+  "core.calendar_link": CoreCalendarLink;
   "core.channel_policy": CoreChannelPolicy;
   "core.commission_statement": CoreCommissionStatement;
   "core.compliance_check": CoreComplianceCheck;
@@ -937,6 +980,7 @@ export interface DB {
   "core.dispatch_candidate": CoreDispatchCandidate;
   "core.dispatch_offer": CoreDispatchOffer;
   "core.dispute": CoreDispute;
+  "core.export_request": CoreExportRequest;
   "core.field_precedence_rule": CoreFieldPrecedenceRule;
   "core.field_provenance": CoreFieldProvenance;
   "core.idempotency_key": CoreIdempotencyKey;
@@ -963,6 +1007,7 @@ export interface DB {
   "core.property_merge": CorePropertyMerge;
   "core.property_party": CorePropertyParty;
   "core.quarantine_item": CoreQuarantineItem;
+  "core.recovery_request": CoreRecoveryRequest;
   "core.requirement_profile": CoreRequirementProfile;
   "core.sequence": CoreSequence;
   "core.sequence_enrollment": CoreSequenceEnrollment;
