@@ -4,3 +4,5 @@ coverage/
 .env
 *.tsbuildinfo
 gen/
+domain-model.md.html
+domain-model.md_files/
