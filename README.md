@@ -2,9 +2,11 @@
 
 The CRM service for the property listing platform: domain model, business logic, and the APIs consumed by the scraper and the web/Flutter clients.
 
+**➜ New here? Start with the [Developer Guide](docs/developer-guide.md)** — run it locally in five commands, then jump to your team's integration section.
+
 ## Status
 
-Design phase — all seven deliverable maps are up for review. Implementation starts once they're approved, in the order below.
+**Built.** All modules implemented and tested (85 tests): contacts, properties & ingest, pipelines & matching, appointments, agent registry, dispatch (atomic claim), notifications, comms (compliance gate), privacy/GDPR, portfolio, reporting — plus CI, synthetic seeds, and the frozen v1 API contract.
 
 ## Deliverables map
 
