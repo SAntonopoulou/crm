@@ -6,3 +6,4 @@ coverage/
 gen/
 domain-model.md.html
 domain-model.md_files/
+var/

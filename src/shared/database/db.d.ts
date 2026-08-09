@@ -82,6 +82,7 @@ export interface CoreAgentProfile {
   commission_terms: Generated<Json>;
   contact_id: string;
   created_at: Generated<Timestamp>;
+  ical_token: Generated<string | null>;
   insurance_expires_at: Timestamp | null;
   languages: Generated<string[]>;
   licence_expires_at: Timestamp | null;
@@ -328,7 +329,9 @@ export interface CoreDispatchOffer {
   id: Generated<string>;
   responded_at: Timestamp | null;
   state: Generated<string>;
+  sync_seq: Generated<Int8>;
   ttl_expires_at: Timestamp;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface CoreDispute {
@@ -768,6 +771,19 @@ export interface CoreTombstone {
   sync_seq: Generated<Int8>;
 }
 
+export interface CoreUploadSession {
+  contact_id: string;
+  content_type: string;
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp;
+  filename: string;
+  id: Generated<string>;
+  purpose: string;
+  size_bytes: Int8;
+  state: Generated<string>;
+  storage_key: string | null;
+}
+
 export interface CoreViewingOutcome {
   appointment_id: string;
   created_at: Generated<Timestamp>;
@@ -782,6 +798,28 @@ export interface CoreWaitlistEntry {
   created_at: Generated<Timestamp>;
   id: Generated<string>;
   position: number;
+}
+
+export interface CoreWebhookDelivery {
+  attempts: Generated<number>;
+  created_at: Generated<Timestamp>;
+  delivered_at: Timestamp | null;
+  event_id: string;
+  event_seq: Int8;
+  id: Generated<string>;
+  last_error: string | null;
+  state: Generated<string>;
+  subscription_id: string;
+}
+
+export interface CoreWebhookSubscription {
+  consumer: string;
+  created_at: Generated<Timestamp>;
+  enabled: Generated<boolean>;
+  event_types: Generated<string[]>;
+  id: Generated<string>;
+  secret: string;
+  url: string;
 }
 
 export interface PrivacyBreachIncident {
@@ -925,8 +963,11 @@ export interface DB {
   "core.terms_acceptance": CoreTermsAcceptance;
   "core.terms_version": CoreTermsVersion;
   "core.tombstone": CoreTombstone;
+  "core.upload_session": CoreUploadSession;
   "core.viewing_outcome": CoreViewingOutcome;
   "core.waitlist_entry": CoreWaitlistEntry;
+  "core.webhook_delivery": CoreWebhookDelivery;
+  "core.webhook_subscription": CoreWebhookSubscription;
   "privacy.breach_incident": PrivacyBreachIncident;
   "privacy.consent": PrivacyConsent;
   "privacy.dsr": PrivacyDsr;

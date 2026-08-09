@@ -16,6 +16,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { CommsModule } from './modules/comms/comms.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { ReportingModule } from './modules/reporting/reporting.module';
+import { PlatformModule } from './modules/platform/platform.module';
 import { PiiAccessInterceptor } from './shared/audit/pii-access.interceptor';
 import { VersionGateMiddleware } from './shared/auth/version-gate.middleware';
 
@@ -36,6 +37,7 @@ import { VersionGateMiddleware } from './shared/auth/version-gate.middleware';
     CommsModule,
     PrivacyModule,
     ReportingModule,
+    PlatformModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_INTERCEPTOR, useClass: PiiAccessInterceptor }],
