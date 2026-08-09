@@ -1,11 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { sql } from 'kysely';
 import { Db, TxContext } from '../../shared/database/db.service';
+import { Clock } from '../../shared/jobs/clock';
+import { JobScheduler } from '../../shared/jobs/job-scheduler';
 import {
   ProvenanceResolver,
   ProvenanceMethod,
 } from '../../shared/provenance/provenance-resolver';
+import { listingLifecycle, ListingState } from './listing-lifecycle';
 import {
   AddressInput,
   canonicalKey,
@@ -68,8 +71,67 @@ export class PropertiesService {
     private readonly db: Db,
     private readonly resolver: ProvenanceResolver,
     config: ConfigService,
+    @Optional() private readonly jobs?: JobScheduler,
+    @Optional() private readonly clock?: Clock,
   ) {
     this.deepLinkBase = config.get<string>('DEEP_LINK_BASE') ?? 'https://app.example/l';
+  }
+
+  /**
+   * Listing lifecycle transition. Going `live` schedules match evaluation
+   * through the job registry — pipelines register the handler, so there is
+   * no properties→pipelines import cycle.
+   */
+  async transitionListing(
+    listingId: string,
+    to: ListingState,
+    actorId: string | null,
+  ): Promise<void> {
+    const now = this.clock?.now() ?? new Date();
+    await this.db.tx(async (ctx) => {
+      const listing = await ctx.trx
+        .selectFrom('core.listing')
+        .select(['id', 'state', 'channel'])
+        .where('id', '=', listingId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!listing) throw new NotFoundException({ code: 'listing_not_found' });
+
+      const from = listing.state as ListingState;
+      listingLifecycle.assert(from, to);
+
+      await ctx.trx
+        .updateTable('core.listing')
+        .set({ state: to, state_entered_at: now })
+        .where('id', '=', listingId)
+        .execute();
+      await ctx.trx
+        .insertInto('core.listing_change')
+        .values({
+          listing_id: listingId,
+          field: 'state',
+          old_value: JSON.stringify(from),
+          new_value: JSON.stringify(to),
+        })
+        .execute();
+      await ctx.emit({
+        aggregateType: 'listing',
+        aggregateId: listingId,
+        eventType: 'listing.state_changed',
+        payload: { from, to, channel: listing.channel, actor_id: actorId },
+      });
+      if (to === 'live') {
+        await ctx.emit({
+          aggregateType: 'listing',
+          aggregateId: listingId,
+          eventType: 'listing.published',
+          payload: { channel: listing.channel },
+        });
+      }
+    });
+    if (to === 'live') {
+      await this.jobs?.schedule('matching.evaluate_listing', { listingId }, now);
+    }
   }
 
   /**

@@ -38,6 +38,16 @@ export interface AuditPiiAccessLog {
   subject_contact_id: string | null;
 }
 
+export interface CoreActivity {
+  actor_id: string | null;
+  contact_id: string | null;
+  id: Generated<string>;
+  kind: string;
+  occurred_at: Generated<Timestamp>;
+  payload: Generated<Json>;
+  property_id: string | null;
+}
+
 export interface CoreContact {
   created_at: Generated<Timestamp>;
   dek_id: string | null;
@@ -179,6 +189,16 @@ export interface CoreListingChange {
   provenance_id: string | null;
 }
 
+export interface CoreMatch {
+  feedback: Json | null;
+  id: Generated<string>;
+  listing_id: string;
+  matched_at: Generated<Timestamp>;
+  profile_id: string;
+  score: Generated<Numeric>;
+  state: Generated<string>;
+}
+
 export interface CoreMediaAsset {
   caption: string | null;
   created_at: Generated<Timestamp>;
@@ -218,6 +238,40 @@ export interface CoreOutboxEvent {
   published_at: Timestamp | null;
   schema_version: Generated<number>;
   seq: Generated<Int8>;
+}
+
+export interface CorePipeline {
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  kind: string;
+  name: string;
+}
+
+export interface CorePipelineItem {
+  assigned_to: string | null;
+  contact_id: string;
+  created_at: Generated<Timestamp>;
+  first_response_due_at: Timestamp | null;
+  id: Generated<string>;
+  pipeline_id: string;
+  property_id: string | null;
+  score: Generated<Numeric>;
+  sla_due_at: Timestamp | null;
+  stage_entered_at: Generated<Timestamp>;
+  stage_id: string;
+  state: Generated<string>;
+  sync_seq: Generated<Int8>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface CorePipelineStage {
+  entry_criteria: Generated<Json>;
+  exit_criteria: Generated<Json>;
+  id: Generated<string>;
+  name: string;
+  pipeline_id: string;
+  position: number;
+  sla_minutes: number | null;
 }
 
 export interface CorePortfolioEntry {
@@ -297,6 +351,25 @@ export interface CoreQuarantineItem {
   state: Generated<string>;
 }
 
+export interface CoreRequirementProfile {
+  active: Generated<boolean>;
+  areas: string | null;
+  bedrooms_min: number | null;
+  budget_max: Numeric | null;
+  budget_min: Numeric | null;
+  channel: string;
+  contact_id: string;
+  created_at: Generated<Timestamp>;
+  currency: Generated<string>;
+  deal_breakers: Generated<Json>;
+  id: Generated<string>;
+  must_haves: Generated<Json>;
+  name: string | null;
+  postcodes: string[] | null;
+  sync_seq: Generated<Int8>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface CoreSource {
   created_at: Generated<Timestamp>;
   default_lawful_basis: Generated<string>;
@@ -304,6 +377,16 @@ export interface CoreSource {
   id: Generated<string>;
   kind: string;
   name: string;
+}
+
+export interface CoreStageTransition {
+  actor_id: string | null;
+  at: Generated<Timestamp>;
+  from_stage_id: string | null;
+  id: Generated<string>;
+  item_id: string;
+  reason: string | null;
+  to_stage_id: string;
 }
 
 export interface CoreSuppressionEntry {
@@ -315,6 +398,18 @@ export interface CoreSuppressionEntry {
   value_hmac: string;
 }
 
+export interface CoreTask {
+  assignee_id: string | null;
+  created_at: Generated<Timestamp>;
+  detail: Generated<Json>;
+  due_at: Timestamp | null;
+  id: Generated<string>;
+  item_id: string | null;
+  kind: string;
+  snoozed_until: Timestamp | null;
+  state: Generated<string>;
+}
+
 export interface CoreTombstone {
   deleted_at: Generated<Timestamp>;
   entity_id: string;
@@ -324,6 +419,7 @@ export interface CoreTombstone {
 
 export interface DB {
   "audit.pii_access_log": AuditPiiAccessLog;
+  "core.activity": CoreActivity;
   "core.contact": CoreContact;
   "core.contact_channel": CoreContactChannel;
   "core.contact_merge": CoreContactMerge;
@@ -337,17 +433,24 @@ export interface DB {
   "core.ingest_run": CoreIngestRun;
   "core.listing": CoreListing;
   "core.listing_change": CoreListingChange;
+  "core.match": CoreMatch;
   "core.media_asset": CoreMediaAsset;
   "core.org_membership": CoreOrgMembership;
   "core.organisation": CoreOrganisation;
   "core.outbox_event": CoreOutboxEvent;
+  "core.pipeline": CorePipeline;
+  "core.pipeline_item": CorePipelineItem;
+  "core.pipeline_stage": CorePipelineStage;
   "core.portfolio_entry": CorePortfolioEntry;
   "core.property": CoreProperty;
   "core.property_document": CorePropertyDocument;
   "core.property_merge": CorePropertyMerge;
   "core.property_party": CorePropertyParty;
   "core.quarantine_item": CoreQuarantineItem;
+  "core.requirement_profile": CoreRequirementProfile;
   "core.source": CoreSource;
+  "core.stage_transition": CoreStageTransition;
   "core.suppression_entry": CoreSuppressionEntry;
+  "core.task": CoreTask;
   "core.tombstone": CoreTombstone;
 }
