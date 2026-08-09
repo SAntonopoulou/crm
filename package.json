@@ -1,0 +1,47 @@
+{
+  "name": "crm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Property platform CRM service",
+  "scripts": {
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "start:dev": "nest start --watch",
+    "migrate": "node-pg-migrate -m db/migrations",
+    "migrate:create": "node-pg-migrate -m db/migrations --migration-file-language sql create",
+    "codegen": "kysely-codegen --dialect postgres --include-pattern '(core|audit|privacy).*' --out-file src/shared/database/db.d.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint:api": "redocly lint api/openapi/crm-v1.yaml api/openapi/ingest-v1.yaml"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.28",
+    "@nestjs/config": "^4.0.4",
+    "@nestjs/core": "^11.1.28",
+    "@nestjs/platform-express": "^11.1.28",
+    "bullmq": "^6.0.9",
+    "ioredis": "^6.0.0",
+    "kysely": "^0.29.4",
+    "pg": "^8.23.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.24",
+    "@swc/core": "^1.15.47",
+    "@types/node": "^26.2.0",
+    "@types/pg": "^8.21.0",
+    "@types/supertest": "^7.2.1",
+    "dotenv": "^17.4.2",
+    "kysely-codegen": "^0.20.0",
+    "node-pg-migrate": "^9.0.0",
+    "supertest": "^7.2.2",
+    "typescript": "^6.0.3",
+    "unplugin-swc": "^1.5.10",
+    "vitest": "^4.1.10"
+  },
+  "allowScripts": {
+    "@swc/core@1.15.47": true,
+    "msgpackr-extract@3.0.4": true
+  }
+}
