@@ -26,15 +26,38 @@ services:
       retries: 30
 
   # Started only with: docker compose --profile auth up -d
+  # Imports the crm realm (roles, PKCE mobile client, scraper + admin
+  # service accounts) from ./keycloak on first boot.
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     profiles: ["auth"]
-    command: start-dev
+    command: start-dev --import-realm
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
     ports:
       - "8082:8080"
 
+  # S3-compatible object storage for media + exports (bucket is created
+  # by the S3Storage adapter on first use).
+  minio:
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: crm
+      MINIO_ROOT_PASSWORD: crm12345
+    ports:
+      - "9000:9000"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
 volumes:
   pgdata:
+  miniodata:

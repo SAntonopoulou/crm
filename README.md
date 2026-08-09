@@ -6,21 +6,21 @@ The CRM service for the property listing platform: domain model, business logic,
 
 ## State of the project
 
-**Feature-complete against the spec's CRM scope; not yet deployed.** All domain modules are implemented and tested (110 tests, CI-gated incl. lint and contract-conformance e2e): contacts & identity, properties & ingest (provenance, suppression, quarantine, geocoding port), pipelines & matching, appointments (tz-correct slots, holds, exclusion-constraint booking), agent registry, dispatch with the atomic claim, notifications (ACK-driven fallback chains), comms (pre-send compliance gate, Art 14), privacy/GDPR (DSR queue, erasure orchestration, purpose-bound grants, retention), portfolio (client-team scope), reporting & staff ops actions, delta sync / bootstrap / iCal / media endpoints, BullMQ worker runtime, and signed webhook fan-out.
+**Engineering complete — launch-blocked only on credentials and legal sign-offs.** All domain modules are implemented and tested (116 tests, CI-gated incl. lint, contract-conformance e2e, and live adapter tests): contacts & identity, properties & ingest, pipelines & matching, appointments, agent registry, dispatch with the atomic claim, notifications, comms with the pre-send compliance gate, privacy/GDPR, portfolio, reporting & staff ops, delta sync / bootstrap / iCal / media, worker runtime, and signed webhook fan-out. All seven mandated test scenarios pass.
 
-All seven mandated test scenarios pass: concurrent claim (exactly one winner, soak-tested), idempotent re-ingest, erasure propagation incl. suppression, SLA timer expiry, availability conflicts incl. DST edges, notification fallback escalation, and purpose-bound access expiry.
+**Real adapters are built and config-gated** — each binds the moment its env vars exist, with safe defaults otherwise: Keycloak admin (realm config in `keycloak/`, imported by compose), envelope-KMS crypto-shredding with real field-level encryption (agent payout IBAN, national id), S3-compatible storage (MinIO in dev/CI), SMTP + Twilio + FCM messaging with a normalized delivery/bounce webhook, and a Nominatim geocoder. Deployment ships as a multi-stage `Dockerfile` + `docker-compose.prod.yml` + [`.env.production.example`](.env.production.example).
 
-External integrations are **ports with safe defaults**: providers and the geocoder no-op until configured; the IdP and KMS adapters throw loudly so no legal obligation is ever silently skipped.
+## TODO — launch
 
-## TODO — before production
+Everything buildable is built. What remains is **provisioning, credentials,
+and counsel sign-offs**, tracked with owners and self-verification steps in
+**[docs/launch-checklist.md](docs/launch-checklist.md)**:
 
-**Adapters & infrastructure (bounded tasks; every seam is built and tested):**
-- [ ] Push/SMS/email provider adapters (`ProviderRegistry`, `MessageProviderRegistry`) — FCM/APNs + an SMS/email vendor, plus their inbound delivery/bounce webhooks
-- [ ] Keycloak: production realm (roles `agent`/`staff`/`ingest`, ACR levels for step-up) + admin adapter (`IdpAdminPort`) for erasure propagation
-- [ ] KMS adapter (`KmsPort`) + write paths for field-level encryption of national ID / IBAN (`contact_sensitive` columns exist; envelope encryption not wired)
-- [ ] EU geocoder adapter (`GeocoderPort`) — add vendor to the processor register
-- [ ] Object storage adapter (`StoragePort`) + thumbnailing/EXIF-strip/virus-scan post-processing
-- [ ] Deployment: environments, secrets (incl. KMS-held suppression HMAC key), backups per runbook §4, monitoring/alerting per runbook §5
+- [ ] §1 Credentials & accounts: managed Postgres/Redis, Keycloak deployment (realm JSON ready), KMS-held keys, S3 bucket, SMTP/Twilio/Firebase accounts, self-hosted Nominatim, domain+TLS+registry+host, monitoring & backups
+- [ ] §2 Legal: LIA, Art 26 arrangement, retention sign-off, per-country ePrivacy rows (block-all is the safe launch state), breach-notice copy, supervisory-authority confirmation
+- [ ] §3 Teammates: scraper against production; mobile app built from the design package + store submissions
+
+Deferred by design (post-launch): media thumbnailing/EXIF/virus-scan post-processing adapters behind the uploaded state.
 
 **Product depth — ALL DONE (2026-08-09):**
 - [x] Appointment reminders (T-24h / T-2h) and automatic re-dispatch on agent cancellation/no-show

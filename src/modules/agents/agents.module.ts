@@ -1,6 +1,7 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { JobRegistry } from '../../shared/jobs/job-scheduler';
 import { ContactsModule } from '../contacts/contacts.module';
+import { PrivacyModule } from '../privacy/privacy.module';
 import { AgentProfileController } from './agents.controller';
 import {
   AgentsService,
@@ -9,7 +10,7 @@ import {
 } from './agents.service';
 
 @Module({
-  imports: [ContactsModule],
+  imports: [ContactsModule, PrivacyModule],
   providers: [AgentsService],
   controllers: [AgentProfileController],
   exports: [AgentsService],

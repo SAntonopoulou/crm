@@ -175,6 +175,51 @@ describe('contract conformance e2e (#44)', () => {
     expect(res.body).toHaveProperty('has_more');
   });
 
+  it('provider status webhook: secret-gated, updates message state (#49)', async () => {
+    const server = app.getHttpServer();
+    const token = await sign(`kc-e2e-${uuid()}`);
+    // A sent message with a provider id, via the real thread flow.
+    const me = await request(server)
+      .get('/v1/me')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    const conversation = await db.kysely
+      .insertInto('core.conversation')
+      .values({ contact_id: me.body.id })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    const providerMessageId = `prov-${uuid()}`;
+    const message = await db.kysely
+      .insertInto('core.message')
+      .values({
+        conversation_id: conversation.id,
+        direction: 'outbound',
+        channel: 'email',
+        state: 'sent',
+        provider_message_id: providerMessageId,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+
+    await request(server)
+      .post('/v1/webhooks/providers/status')
+      .send({ provider_message_id: providerMessageId, status: 'bounced' })
+      .expect(401); // no secret
+
+    await request(server)
+      .post('/v1/webhooks/providers/status')
+      .set('x-webhook-secret', process.env.PROVIDER_WEBHOOK_SECRET!)
+      .send({ provider_message_id: providerMessageId, status: 'bounced' })
+      .expect(204);
+
+    const after = await db.kysely
+      .selectFrom('core.message')
+      .select('state')
+      .where('id', '=', message.id)
+      .executeTakeFirstOrThrow();
+    expect(after.state).toBe('bounced');
+  });
+
   it('preference centre corrects transactional opt-outs per contract', async () => {
     const token = await sign(`kc-e2e-${uuid()}`);
     const res = await request(app.getHttpServer())

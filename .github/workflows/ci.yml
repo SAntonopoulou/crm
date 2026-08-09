@@ -33,10 +33,21 @@ jobs:
       REDIS_URL: redis://localhost:6379
       KEYCLOAK_ISSUER: http://localhost:8082/realms/crm
       SUPPRESSION_HMAC_KEY: ci-only-suppression-key
+      KMS_MASTER_KEY: q83vkKCXbC0eGgLxN2m5b7ZTgquWnQqhKc0DpHwl1uM=
+      S3_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: crm
+      S3_SECRET_KEY: crm12345
+      S3_BUCKET: crm
+      PROVIDER_WEBHOOK_SECRET: ci-webhook-secret
       # Nightly runs soak the atomic claim; PRs run 10 iterations.
       CLAIM_SOAK: ${{ github.event_name == 'schedule' && '100' || '10' }}
     steps:
       - uses: actions/checkout@v4
+      - name: Start MinIO (S3 adapter tests)
+        run: |
+          docker run -d -p 9000:9000 \
+            -e MINIO_ROOT_USER=crm -e MINIO_ROOT_PASSWORD=crm12345 \
+            minio/minio:latest server /data
       - uses: actions/setup-node@v4
         with:
           node-version: 26
@@ -55,6 +66,15 @@ jobs:
       - name: Tests (mandated scenarios are unskippable — no .skip in specs)
         run: |
           ! grep -rn "\.skip(\|\.only(" test/ && npm test
+
+  image:
+    # Build-only proof the production image assembles; pushing to a registry
+    # needs credentials (launch checklist).
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t crm:${{ github.sha }} .
 
   contract:
     runs-on: ubuntu-latest

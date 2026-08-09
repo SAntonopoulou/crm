@@ -1,6 +1,9 @@
 import { Module, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Db } from '../../shared/database/db.service';
 import { JobRegistry } from '../../shared/jobs/job-scheduler';
 import { ContactsModule } from '../contacts/contacts.module';
+import { bindChannelProviders } from './channel-providers.adapter';
 import { NotificationsController } from './notifications.controller';
 import {
   JOB_NOTIFICATION_DELIVER,
@@ -20,9 +23,14 @@ export class NotificationsModule implements OnModuleInit {
   constructor(
     private readonly registry: JobRegistry,
     private readonly notifications: NotificationsService,
+    private readonly providers: ProviderRegistry,
+    private readonly db: Db,
+    private readonly config: ConfigService,
   ) {}
 
   onModuleInit(): void {
+    // Real FCM/Twilio/SMTP channel providers bind iff configured.
+    bindChannelProviders(this.providers, this.db, this.config);
     this.registry.register(JOB_NOTIFICATION_DELIVER, (p) => {
       const { notificationId, step } = p as { notificationId: string; step: number };
       return this.notifications.deliverStep(notificationId, step);

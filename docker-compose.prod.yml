@@ -1,0 +1,39 @@
+# Production stack. Postgres/Redis/object storage/Keycloak are expected to
+# be managed services referenced via .env.production; this composes the CRM
+# itself: migrations run once, then API replicas + one worker replica.
+#
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+
+services:
+  migrate:
+    build: .
+    command: ["npx", "node-pg-migrate", "-m", "db/migrations", "up"]
+    env_file: .env.production
+    restart: "no"
+
+  api:
+    build: .
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    env_file: .env.production
+    environment:
+      JOBS_ENABLED: "false"
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  worker:
+    build: .
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    env_file: .env.production
+    environment:
+      JOBS_ENABLED: "true"
+    restart: unless-stopped

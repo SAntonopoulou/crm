@@ -894,6 +894,13 @@ export interface PrivacyConsent {
   wording_version: Generated<string>;
 }
 
+export interface PrivacyDek {
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  iv: Buffer;
+  key_ciphertext: Buffer;
+}
+
 export interface PrivacyDsr {
   completion_audit: Json | null;
   contact_id: string;
@@ -1028,6 +1035,7 @@ export interface DB {
   "core.webhook_subscription": CoreWebhookSubscription;
   "privacy.breach_incident": PrivacyBreachIncident;
   "privacy.consent": PrivacyConsent;
+  "privacy.dek": PrivacyDek;
   "privacy.dsr": PrivacyDsr;
   "privacy.erasure_propagation": PrivacyErasurePropagation;
   "privacy.processing_activity": PrivacyProcessingActivity;

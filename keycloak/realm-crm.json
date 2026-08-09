@@ -1,0 +1,56 @@
+{
+  "realm": "crm",
+  "enabled": true,
+  "registrationAllowed": true,
+  "resetPasswordAllowed": true,
+  "bruteForceProtected": true,
+  "roles": {
+    "realm": [
+      { "name": "agent", "description": "Registered showing agent" },
+      { "name": "staff", "description": "Platform staff / ops console" },
+      { "name": "ingest", "description": "Scraper service account" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "crm-mobile",
+      "name": "Mobile & web app",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["*"],
+      "webOrigins": ["*"],
+      "attributes": { "pkce.code.challenge.method": "S256" }
+    },
+    {
+      "clientId": "crm-scraper",
+      "name": "Scraper service account",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "secret": "dev-scraper-secret"
+    },
+    {
+      "clientId": "crm-admin",
+      "name": "CRM backend admin (erasure propagation, session revocation)",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "secret": "dev-admin-secret"
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-crm-scraper",
+      "enabled": true,
+      "serviceAccountClientId": "crm-scraper",
+      "realmRoles": ["ingest"]
+    },
+    {
+      "username": "service-account-crm-admin",
+      "enabled": true,
+      "serviceAccountClientId": "crm-admin",
+      "clientRoles": { "realm-management": ["manage-users"] }
+    }
+  ]
+}

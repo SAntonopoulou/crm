@@ -1,6 +1,8 @@
 import { Module, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JobRegistry } from '../../shared/jobs/job-scheduler';
 import { ContactsModule } from '../contacts/contacts.module';
+import { NominatimGeocoder } from './nominatim.adapter';
 import {
   GeocoderPort,
   GeocodingService,
@@ -19,7 +21,13 @@ import { SuppressionService } from './suppression.service';
     IngestService,
     SuppressionService,
     GeocodingService,
-    { provide: GeocoderPort, useClass: NoopGeocoder },
+    {
+      // Nominatim-compatible geocoder when configured; no-op otherwise.
+      provide: GeocoderPort,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService): GeocoderPort =>
+        config.get('GEOCODER_URL') ? new NominatimGeocoder(config) : new NoopGeocoder(),
+    },
   ],
   controllers: [IngestController, ListingsController],
   exports: [PropertiesService, SuppressionService, IngestService],
