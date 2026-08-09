@@ -1,6 +1,6 @@
 # Deliverable 4 — API Specification
 
-**Status: awaiting review.** This is the contract map; the machine-readable OpenAPI documents live in `api/openapi/` (generated from NestJS decorators for the client API, hand-authored for the ingest contract) and are the artefacts the scraper and client teams pin their codegen to. CI diffs them on every PR — a breaking change without a version bump fails the build.
+**Status: published, contract-first.** The machine-readable OpenAPI documents live in [`api/openapi/`](../api/openapi/) and are **the contract of record**: hand-authored first, frozen at v1, and the CRM implementation is built to conform to them (if implementation and contract disagree, the implementation is the bug). The scraper and client teams pin their codegen and mock servers to these files — see [`api/README.md`](../api/README.md) for the change policy, mock-server workflow and codegen commands. CI diffs the contract on every PR — a breaking change without a version bump fails the build. This document is the prose companion: semantics and rationale.
 
 ---
 

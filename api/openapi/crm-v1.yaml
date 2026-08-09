@@ -1,0 +1,1178 @@
+openapi: 3.1.0
+info:
+  title: Property CRM — Client API
+  version: 1.0.0
+  description: |
+    Contract for the web application and the Flutter mobile app.
+
+    **Contract rules (binding on both sides):**
+    - Consumers MUST tolerate unknown response fields and unknown values in
+      enums marked OPEN. Enums marked CLOSED only change with a version bump.
+    - All unsafe requests SHOULD send `Idempotency-Key`; replayed offline
+      writes MUST send it plus `X-Offline-Replay: 1`.
+    - State-machine resources are server-authoritative: a stale transition
+      returns `409` with code `state_conflict` and the current resource in
+      `problem.current`; the client reconciles and retries deliberately.
+    - Claims are ONLINE-ONLY: never queued offline (`422 claims_online_only`).
+    - Server countdowns (`ttl_expires_at`, hold expiry) are authoritative;
+      client timers are cosmetic.
+    - Mobile clients send `X-App-Platform` and `X-App-Version` on every
+      request; `426` means hard upgrade wall (body has localised copy).
+  contact:
+    name: CRM team
+  license:
+    name: Proprietary — internal project contract
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /v1
+security:
+  - bearerAuth: []
+tags:
+  - { name: bootstrap, description: Session bootstrap and remote configuration }
+  - { name: me, description: 'Self profile, channels and preferences' }
+  - { name: listings, description: Listing search and detail }
+  - { name: profiles, description: Buyer/renter requirement profiles and matches }
+  - { name: appointments, description: 'Holds, booking, attendance, feedback, outcomes' }
+  - { name: agent, description: Agent-role endpoints incl. offers and claim }
+  - { name: conversations, description: Threaded messaging across channels }
+  - { name: notifications, description: 'Devices, ACKs and delivery' }
+  - { name: privacy, description: Consents and data subject requests }
+  - { name: sync, description: Delta sync with tombstones }
+  - { name: media, description: Resumable uploads }
+paths:
+  /bootstrap:
+    get:
+      operationId: getBootstrap
+      tags: [bootstrap]
+      summary: Session bootstrap — flags, config, version verdict, copy keys
+      parameters:
+        - $ref: '#/components/parameters/AppPlatform'
+        - $ref: '#/components/parameters/AppVersion'
+      responses:
+        '200':
+          description: Bootstrap payload.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Bootstrap' }
+        '426': { $ref: '#/components/responses/UpgradeRequired' }
+  /me:
+    get:
+      operationId: getMe
+      tags: [me]
+      summary: Current contact (self view, unmasked)
+      responses:
+        '200':
+          description: The authenticated contact.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactSelf' }
+    patch:
+      operationId: updateMe
+      tags: [me]
+      summary: Update own profile fields
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContactSelfUpdate' }
+      responses:
+        '200':
+          description: Updated contact.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactSelf' }
+  /me/preferences:
+    get:
+      operationId: getPreferences
+      tags: [me]
+      summary: Notification preference centre
+      responses:
+        '200':
+          description: Preferences per channel × category × device.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/NotificationPreference' }
+    put:
+      operationId: putPreferences
+      tags: [me]
+      summary: Replace preference set
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: '#/components/schemas/NotificationPreference' }
+      responses:
+        '200':
+          description: Stored preferences (transactional categories are not suppressible; such entries are returned corrected).
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/NotificationPreference' }
+  /listings:
+    get:
+      operationId: searchListings
+      tags: [listings]
+      summary: Search live listings
+      parameters:
+        - { name: channel, in: query, schema: { type: string, enum: [sale, rent] } }
+        - { name: lat, in: query, schema: { type: number } }
+        - { name: lng, in: query, schema: { type: number } }
+        - { name: radius_km, in: query, schema: { type: number, maximum: 50 } }
+        - { name: postcodes, in: query, schema: { type: string }, description: Comma-separated }
+        - { name: price_min, in: query, schema: { type: string } }
+        - { name: price_max, in: query, schema: { type: string } }
+        - { name: bedrooms_min, in: query, schema: { type: integer } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Page of listings.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ListingSummary' }
+                  next_cursor: { type: [string, 'null'] }
+  /listings/{listingId}:
+    get:
+      operationId: getListing
+      tags: [listings]
+      summary: Listing detail
+      parameters: [{ $ref: '#/components/parameters/ListingId' }]
+      responses:
+        '200':
+          description: Listing with property details and media.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Listing' }
+          headers:
+            ETag: { schema: { type: string } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /me/requirement-profiles:
+    get:
+      operationId: listRequirementProfiles
+      tags: [profiles]
+      summary: My saved search profiles
+      responses:
+        '200':
+          description: Profiles.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RequirementProfile' }
+    post:
+      operationId: createRequirementProfile
+      tags: [profiles]
+      summary: Create a profile (activates matching + alerts)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RequirementProfileInput' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RequirementProfile' }
+  /me/requirement-profiles/{profileId}:
+    patch:
+      operationId: updateRequirementProfile
+      tags: [profiles]
+      summary: Update or deactivate a profile
+      parameters:
+        - { name: profileId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RequirementProfileInput' }
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RequirementProfile' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /matches/{matchId}/feedback:
+    post:
+      operationId: matchFeedback
+      tags: [profiles]
+      summary: Record match feedback (refines future matching)
+      parameters:
+        - { name: matchId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [feedback]
+              properties:
+                feedback: { type: string, enum: [dismissed, interested] }
+      responses:
+        '204': { description: Recorded. }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /appointments/holds:
+    post:
+      operationId: createHold
+      tags: [appointments]
+      summary: Place a slot hold (TTL) before booking
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [listing_id, starts_at, ends_at]
+              properties:
+                listing_id: { type: string, format: uuid }
+                starts_at: { type: string, format: date-time }
+                ends_at: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Hold placed; convert before `expires_at`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SlotHold' }
+        '409':
+          description: Slot conflict (`slot_conflict`) or notice-period violation (`min_notice`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /appointments:
+    post:
+      operationId: bookAppointment
+      tags: [appointments]
+      summary: Convert a hold into a booking (starts agent dispatch)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hold_id]
+              properties:
+                hold_id: { type: string, format: uuid }
+                notes: { type: string }
+      responses:
+        '201':
+          description: Appointment created in `dispatching`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Appointment' }
+        '410':
+          description: Hold expired (`hold_expired`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+    get:
+      operationId: listAppointments
+      tags: [appointments]
+      summary: My appointments (any role)
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: state, in: query, schema: { type: string }, description: Comma-separated states }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Page of appointments.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Appointment' }
+                  next_cursor: { type: [string, 'null'] }
+  /appointments/{appointmentId}:
+    get:
+      operationId: getAppointment
+      tags: [appointments]
+      summary: Appointment detail
+      parameters: [{ $ref: '#/components/parameters/AppointmentId' }]
+      responses:
+        '200':
+          description: Appointment.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Appointment' }
+          headers:
+            ETag: { schema: { type: string } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /appointments/{appointmentId}/cancel:
+    post:
+      operationId: cancelAppointment
+      tags: [appointments]
+      summary: Cancel (notice policy applied server-side)
+      parameters:
+        - $ref: '#/components/parameters/AppointmentId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '200':
+          description: Cancelled; body includes the policy consequence applied.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CancellationResult' }
+        '409': { $ref: '#/components/responses/StateConflict' }
+  /appointments/{appointmentId}/reschedule:
+    post:
+      operationId: rescheduleAppointment
+      tags: [appointments]
+      summary: Reschedule to a new held slot
+      parameters:
+        - $ref: '#/components/parameters/AppointmentId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hold_id]
+              properties:
+                hold_id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Rescheduled appointment.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Appointment' }
+        '409': { $ref: '#/components/responses/StateConflict' }
+        '410':
+          description: Hold expired.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /appointments/{appointmentId}/check-in:
+    post:
+      operationId: checkIn
+      tags: [appointments]
+      summary: Attendance proof — check in (agent or viewer)
+      parameters: [{ $ref: '#/components/parameters/AppointmentId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AttendanceProofInput' }
+      responses:
+        '204': { description: Recorded. }
+        '409': { $ref: '#/components/responses/StateConflict' }
+        '422':
+          description: Evidence rejected (`geofence_out_of_range`, `bad_code`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /appointments/{appointmentId}/check-out:
+    post:
+      operationId: checkOut
+      tags: [appointments]
+      summary: Attendance proof — check out
+      parameters: [{ $ref: '#/components/parameters/AppointmentId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AttendanceProofInput' }
+      responses:
+        '204': { description: Recorded. }
+        '409': { $ref: '#/components/responses/StateConflict' }
+  /appointments/{appointmentId}/feedback:
+    post:
+      operationId: appointmentFeedback
+      tags: [appointments]
+      summary: Structured post-visit feedback (agent or viewer)
+      parameters: [{ $ref: '#/components/parameters/AppointmentId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AppointmentFeedbackInput' }
+      responses:
+        '204': { description: Recorded. }
+  /appointments/{appointmentId}/outcome:
+    post:
+      operationId: appointmentOutcome
+      tags: [appointments]
+      summary: Record the viewing outcome (agent)
+      parameters: [{ $ref: '#/components/parameters/AppointmentId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome]
+              properties:
+                outcome: { type: string, enum: [interested, offer_intent, rejected, no_show_viewer] }
+                notes: { type: string }
+      responses:
+        '204': { description: Recorded; routed into the demand pipeline. }
+  /agent/offers:
+    get:
+      operationId: listOffers
+      tags: [agent]
+      summary: My open dispatch offers
+      responses:
+        '200':
+          description: Open offers with server-authoritative TTLs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Offer' }
+  /agent/offers/{offerId}/claim:
+    post:
+      operationId: claimOffer
+      tags: [agent]
+      summary: Claim the showing — atomic, exactly one winner
+      description: |
+        ONLINE-ONLY. Requests with `X-Offline-Replay` are rejected (422
+        `claims_online_only`). Idempotent for the winner: retrying after a
+        network failure returns 200 again, never a second agreement.
+        Step-up authentication is required for the agent's first-ever claim
+        (403 `step_up_required`).
+      parameters:
+        - $ref: '#/components/parameters/OfferId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Claim won (or idempotent replay of the win).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClaimResult' }
+        '403':
+          description: Step-up required (`step_up_required`, body carries required ACR).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '409':
+          description: Lost the race (`already_claimed`) or offer withdrawn (`offer_withdrawn`). No winner details are disclosed.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '410':
+          description: Offer TTL expired (`offer_expired`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422':
+          description: Offline replay attempted (`claims_online_only`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /agent/offers/{offerId}/decline:
+    post:
+      operationId: declineOffer
+      tags: [agent]
+      summary: Decline an offer (frees the slot for the next candidate)
+      parameters: [{ $ref: '#/components/parameters/OfferId' }]
+      responses:
+        '204': { description: Declined. }
+        '409': { $ref: '#/components/responses/StateConflict' }
+  /agent/schedule:
+    get:
+      operationId: getSchedule
+      tags: [agent]
+      summary: My confirmed appointments + iCal feed URL
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: Schedule window.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [appointments, ical_url]
+                properties:
+                  appointments:
+                    type: array
+                    items: { $ref: '#/components/schemas/Appointment' }
+                  ical_url: { type: string, format: uri, description: Tokenised read-only feed }
+  /agent/profile:
+    get:
+      operationId: getAgentProfile
+      tags: [agent]
+      summary: My agent profile, documents and status
+      responses:
+        '200':
+          description: Profile.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentProfile' }
+    patch:
+      operationId: updateAgentProfile
+      tags: [agent]
+      summary: Update coverage, languages, working hours, capacity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentProfileUpdate' }
+      responses:
+        '200':
+          description: Updated profile (licence/insurance documents go through media upload + verification, not this endpoint).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentProfile' }
+  /conversations:
+    get:
+      operationId: listConversations
+      tags: [conversations]
+      summary: My conversation threads
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Threads, most recent first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Conversation' }
+                  next_cursor: { type: [string, 'null'] }
+  /conversations/{conversationId}/messages:
+    get:
+      operationId: listMessages
+      tags: [conversations]
+      summary: Messages in a thread (all channels merged)
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Messages, newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Message' }
+                  next_cursor: { type: [string, 'null'] }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: sendMessage
+      tags: [conversations]
+      summary: Send an in-app message
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, maxLength: 4000 }
+      responses:
+        '201':
+          description: Message queued (passes the compliance gate like any outbound).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+  /devices/{installId}:
+    put:
+      operationId: registerDevice
+      tags: [notifications]
+      summary: Register or refresh this installation's push identity
+      parameters:
+        - { name: installId, in: path, required: true, schema: { type: string, maxLength: 64 }, description: Stable client-generated installation id }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeviceInput' }
+      responses:
+        '204': { description: Stored. }
+    delete:
+      operationId: removeDevice
+      tags: [notifications]
+      summary: Remove this installation (logout)
+      parameters:
+        - { name: installId, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Removed. }
+  /notifications/{notificationId}/ack:
+    post:
+      operationId: ackNotification
+      tags: [notifications]
+      summary: Client ACK — halts the fallback chain for time-critical messages
+      parameters:
+        - { name: notificationId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Acknowledged (idempotent). }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /me/consents:
+    get:
+      operationId: listConsents
+      tags: [privacy]
+      summary: My consent records (against exact wording versions)
+      responses:
+        '200':
+          description: Consents.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Consent' }
+  /me/consents/{purpose}/withdraw:
+    post:
+      operationId: withdrawConsent
+      tags: [privacy]
+      summary: Withdraw a consent purpose
+      parameters:
+        - { name: purpose, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Withdrawn; takes effect immediately on all channels. }
+  /me/dsr:
+    post:
+      operationId: createDsr
+      tags: [privacy]
+      summary: File a data subject request
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind: { type: string, enum: [access, rectification, erasure, restriction, portability, objection] }
+                detail: { type: string }
+      responses:
+        '201':
+          description: Filed; one-month SLA starts now.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DsrRequest' }
+  /me/dsr/{dsrId}:
+    get:
+      operationId: getDsr
+      tags: [privacy]
+      summary: DSR status
+      parameters:
+        - { name: dsrId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Status; completed access/portability requests include a time-limited download URL.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DsrRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /sync:
+    get:
+      operationId: deltaSync
+      tags: [sync]
+      summary: Delta sync — changes and tombstones since a cursor
+      description: |
+        Role-filtered server-side. `since=0` bootstraps. Claims and other
+        online-only actions never appear as pending writes here.
+      parameters:
+        - { name: since, in: query, required: true, schema: { type: integer, minimum: 0 }, description: Last seen `sync_seq` }
+        - { name: types, in: query, schema: { type: string }, description: Comma-separated resource types; omit for all permitted }
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Ordered changes; follow `next_since` until `has_more` is false.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncPage' }
+  /media/uploads:
+    post:
+      operationId: startUpload
+      tags: [media]
+      summary: Start a resumable upload (tus protocol)
+      description: |
+        Returns a tus endpoint + signed target. Server thumbnails, strips
+        EXIF, virus-scans; the resulting `media_asset_id` is then attachable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, content_type, size_bytes]
+              properties:
+                filename: { type: string }
+                content_type: { type: string }
+                size_bytes: { type: integer }
+                purpose: { type: string, enum: [listing_media, agent_document, property_document] }
+      responses:
+        '201':
+          description: Upload session.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [upload_url, media_asset_id]
+                properties:
+                  upload_url: { type: string, format: uri }
+                  media_asset_id: { type: string, format: uuid }
+                  expires_at: { type: string, format: date-time }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Keycloak-issued JWT (Authorization Code + PKCE for humans).
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: { type: string, maxLength: 128 }
+      description: Same key + same payload replays the stored response; same key + different payload → 409 `idempotency_key_reuse`. Expires after 24 h.
+    AppPlatform:
+      name: X-App-Platform
+      in: header
+      required: false
+      schema: { type: string, enum: [ios, android, web] }
+    AppVersion:
+      name: X-App-Version
+      in: header
+      required: false
+      schema: { type: string }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    ListingId:
+      name: listingId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    AppointmentId:
+      name: appointmentId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    OfferId:
+      name: offerId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ConversationId:
+      name: conversationId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    NotFound:
+      description: Resource not found or not visible to this role.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    StateConflict:
+      description: Stale state transition; `problem.current` carries the current resource.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    UpgradeRequired:
+      description: App build below minimum supported version.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457. `code` is the stable machine contract; `current` appears on `state_conflict`.
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string }
+        current: { type: object, description: Current resource on state_conflict }
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: { type: string, description: 'Decimal string, e.g. "285000.00"' }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+    GeoPoint:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat: { type: number }
+        lng: { type: number }
+    Bootstrap:
+      type: object
+      required: [version_verdict, flags, copy]
+      properties:
+        version_verdict:
+          type: object
+          properties:
+            status: { type: string, enum: [ok, upgrade_advised, upgrade_required] }
+            message_key: { type: string }
+        flags:
+          type: object
+          additionalProperties: true
+        copy:
+          type: object
+          description: Server-driven text keyed by copy key, in the token's locale.
+          additionalProperties: { type: string }
+        entitlements:
+          type: array
+          items: { type: string }
+          description: OPEN enum of role-derived capabilities (e.g. agent_offers, owner_listings).
+    ContactSelf:
+      type: object
+      required: [id, lifecycle_state, locale]
+      properties:
+        id: { type: string, format: uuid }
+        lifecycle_state: { type: string, enum: [unregistered, invited, registered, identity_verified, suspended], description: CLOSED }
+        display_name: { type: string }
+        locale: { type: string, enum: [fr, nl, en] }
+        timezone: { type: string }
+        channels:
+          type: array
+          items:
+            type: object
+            properties:
+              kind: { type: string, enum: [email, phone] }
+              value: { type: string }
+              verification_state: { type: string, enum: [unverified, pending, verified, bounced] }
+              is_preferred: { type: boolean }
+        roles:
+          type: array
+          items: { type: string, description: 'OPEN — owner, buyer, renter, agent, staff' }
+    ContactSelfUpdate:
+      type: object
+      properties:
+        display_name: { type: string }
+        locale: { type: string, enum: [fr, nl, en] }
+        timezone: { type: string }
+    NotificationPreference:
+      type: object
+      required: [channel, category, opted_out]
+      properties:
+        channel: { type: string, enum: [push, sms, email] }
+        category: { type: string, enum: [transactional, marketing], description: CLOSED. transactional cannot be opted out. }
+        device_install_id: { type: [string, 'null'], description: Per-device override; null = all devices }
+        opted_out: { type: boolean }
+    ListingSummary:
+      type: object
+      required: [id, channel, state, price]
+      properties:
+        id: { type: string, format: uuid }
+        property_id: { type: string, format: uuid }
+        channel: { type: string, enum: [sale, rent] }
+        state: { type: string, description: OPEN — clients render unknown states as read-only }
+        price: { $ref: '#/components/schemas/Money' }
+        headline: { type: string }
+        city: { type: string }
+        postcode: { type: string }
+        bedrooms: { type: integer }
+        floor_area_sqm: { type: number }
+        thumbnail_url: { type: [string, 'null'], format: uri }
+        location: { $ref: '#/components/schemas/GeoPoint' }
+    Listing:
+      allOf:
+        - $ref: '#/components/schemas/ListingSummary'
+        - type: object
+          properties:
+            description: { type: string }
+            features: { type: object, additionalProperties: true }
+            epc_rating: { type: [string, 'null'] }
+            media:
+              type: array
+              items:
+                type: object
+                properties:
+                  url: { type: string, format: uri }
+                  caption: { type: [string, 'null'] }
+                  position: { type: integer }
+            deep_link: { type: string, format: uri }
+    RequirementProfileInput:
+      type: object
+      properties:
+        name: { type: string }
+        channel: { type: string, enum: [sale, rent] }
+        budget_min: { $ref: '#/components/schemas/Money' }
+        budget_max: { $ref: '#/components/schemas/Money' }
+        areas:
+          type: object
+          description: Either polygons (GeoJSON MultiPolygon) or postcode list.
+          properties:
+            polygons: { type: object, description: GeoJSON MultiPolygon }
+            postcodes:
+              type: array
+              items: { type: string }
+        bedrooms_min: { type: integer }
+        must_haves:
+          type: array
+          items: { type: string }
+        deal_breakers:
+          type: array
+          items: { type: string }
+        active: { type: boolean, default: true }
+    RequirementProfile:
+      allOf:
+        - $ref: '#/components/schemas/RequirementProfileInput'
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string, format: uuid }
+            created_at: { type: string, format: date-time }
+    SlotHold:
+      type: object
+      required: [id, listing_id, starts_at, ends_at, expires_at]
+      properties:
+        id: { type: string, format: uuid }
+        listing_id: { type: string, format: uuid }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time, description: Server-authoritative TTL }
+    Appointment:
+      type: object
+      required: [id, state, starts_at, ends_at, kind]
+      properties:
+        id: { type: string, format: uuid }
+        listing_id: { type: string, format: uuid }
+        property_summary:
+          type: object
+          properties:
+            address_line: { type: string, description: Masked until a purpose-bound grant applies }
+            city: { type: string }
+            location: { $ref: '#/components/schemas/GeoPoint' }
+        state: { type: string, enum: [requested, hold_placed, dispatching, unstaffed, booked, confirmed, in_progress, completed, outcome_captured, cancelled, no_show, rescheduled], description: CLOSED }
+        kind: { type: string, enum: [private, open_house] }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        agent: { $ref: '#/components/schemas/PartyRef' }
+        viewer: { $ref: '#/components/schemas/PartyRef' }
+        contact_reveal:
+          type: [object, 'null']
+          description: Present only inside an active purpose-bound access window.
+          properties:
+            window_ends_at: { type: string, format: date-time }
+        cancellation_policy:
+          type: object
+          properties:
+            free_until: { type: string, format: date-time }
+            penalty_note_key: { type: string }
+    PartyRef:
+      type: object
+      description: Masked party reference; PII revealed only under an active grant via the detail endpoints.
+      properties:
+        contact_id: { type: string, format: uuid }
+        display_name: { type: string, description: May be masked (e.g. "S***") }
+    CancellationResult:
+      type: object
+      required: [appointment]
+      properties:
+        appointment: { $ref: '#/components/schemas/Appointment' }
+        penalty_applied: { type: boolean }
+        penalty_note_key: { type: [string, 'null'] }
+    AttendanceProofInput:
+      type: object
+      required: [method]
+      properties:
+        method: { type: string, enum: [geofence, one_time_code] }
+        location: { $ref: '#/components/schemas/GeoPoint' }
+        code: { type: string }
+    AppointmentFeedbackInput:
+      type: object
+      properties:
+        condition_rating: { type: integer, minimum: 1, maximum: 5 }
+        price_opinion: { type: string, enum: [under, fair, over] }
+        interest_level: { type: string, enum: [none, low, medium, high] }
+        comments: { type: string, maxLength: 2000 }
+        share_with_owner: { type: boolean, default: false }
+    Offer:
+      type: object
+      required: [id, state, ttl_expires_at, appointment_summary]
+      properties:
+        id: { type: string, format: uuid }
+        state: { type: string, enum: [sent, seen, claimed, declined, expired, withdrawn], description: CLOSED }
+        ttl_expires_at: { type: string, format: date-time, description: Server-authoritative; client countdowns are cosmetic }
+        appointment_summary:
+          type: object
+          description: Pre-claim view — approximate location only, no PII.
+          properties:
+            starts_at: { type: string, format: date-time }
+            ends_at: { type: string, format: date-time }
+            area_label: { type: string, description: e.g. "1050 Ixelles" }
+            approx_location: { $ref: '#/components/schemas/GeoPoint' }
+            property_kind: { type: string }
+            channel: { type: string, enum: [sale, rent] }
+        commission_summary_key: { type: string, description: Server-driven copy key for the offer screen }
+    ClaimResult:
+      type: object
+      required: [agreement, appointment]
+      properties:
+        agreement:
+          type: object
+          required: [id, exclusivity_ends_at, terms_version]
+          properties:
+            id: { type: string, format: uuid }
+            exclusivity_ends_at: { type: string, format: date-time }
+            terms_version: { type: string }
+            terms_url: { type: string, format: uri }
+        appointment: { $ref: '#/components/schemas/Appointment' }
+        contact_reveal_window_ends_at: { type: string, format: date-time }
+    AgentProfile:
+      type: object
+      required: [contact_id, state]
+      properties:
+        contact_id: { type: string, format: uuid }
+        state: { type: string, enum: [invited, onboarding, pending_review, active, suspended, rejected, offboarded], description: CLOSED }
+        suspension_reason: { type: [string, 'null'], description: 'OPEN — doc_lapse_auto, manual' }
+        licence_expires_at: { type: [string, 'null'], format: date }
+        insurance_expires_at: { type: [string, 'null'], format: date }
+        languages:
+          type: array
+          items: { type: string }
+        specialisms:
+          type: array
+          items: { type: string }
+        capacity_max_active: { type: integer }
+        working_hours: { type: object, additionalProperties: true }
+        coverage:
+          type: object
+          properties:
+            polygons: { type: object, description: GeoJSON MultiPolygon }
+            postcodes:
+              type: array
+              items: { type: string }
+        scorecard:
+          type: object
+          description: Read-only, derived.
+          properties:
+            claim_rate: { type: number }
+            punctuality: { type: number }
+            no_show_rate: { type: number }
+            feedback_avg: { type: number }
+    AgentProfileUpdate:
+      type: object
+      properties:
+        languages:
+          type: array
+          items: { type: string }
+        specialisms:
+          type: array
+          items: { type: string }
+        capacity_max_active: { type: integer }
+        working_hours: { type: object, additionalProperties: true }
+        coverage:
+          type: object
+          properties:
+            polygons: { type: object }
+            postcodes:
+              type: array
+              items: { type: string }
+    Conversation:
+      type: object
+      required: [id, last_message_at]
+      properties:
+        id: { type: string, format: uuid }
+        topic: { type: [string, 'null'] }
+        listing_id: { type: [string, 'null'], format: uuid }
+        last_message_at: { type: string, format: date-time }
+        unread_count: { type: integer }
+    Message:
+      type: object
+      required: [id, direction, channel, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        direction: { type: string, enum: [inbound, outbound] }
+        channel: { type: string, enum: [email, sms, whatsapp, voice_note, in_app], description: OPEN }
+        body: { type: string }
+        state: { type: string, description: 'OPEN — queued, sent, delivered, bounced' }
+        created_at: { type: string, format: date-time }
+    DeviceInput:
+      type: object
+      required: [platform]
+      properties:
+        push_token: { type: [string, 'null'], description: Null when OS permission denied }
+        platform: { type: string, enum: [ios, android, web] }
+        app_version: { type: string }
+        locale: { type: string }
+        os_permission_state: { type: string, enum: [granted, denied, provisional, undetermined] }
+    Consent:
+      type: object
+      required: [purpose, granted_at, wording_version]
+      properties:
+        purpose: { type: string }
+        granted_at: { type: string, format: date-time }
+        withdrawn_at: { type: [string, 'null'], format: date-time }
+        wording_version: { type: string }
+        wording_text: { type: string, description: The exact text that was presented }
+    DsrRequest:
+      type: object
+      required: [id, kind, state, due_at]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [access, rectification, erasure, restriction, portability, objection] }
+        state: { type: string, enum: [received, identity_check, in_progress, escalated, completed, refused], description: CLOSED }
+        received_at: { type: string, format: date-time }
+        due_at: { type: string, format: date-time }
+        download_url: { type: [string, 'null'], format: uri, description: 'Time-limited; access/portability only, when completed' }
+    SyncPage:
+      type: object
+      required: [changes, tombstones, next_since, has_more]
+      properties:
+        changes:
+          type: array
+          items:
+            type: object
+            required: [type, id, sync_seq, data]
+            properties:
+              type: { type: string, description: 'OPEN resource type, e.g. listing, appointment, offer' }
+              id: { type: string, format: uuid }
+              sync_seq: { type: integer }
+              data: { type: object, description: Full resource in its contract shape }
+        tombstones:
+          type: array
+          items:
+            type: object
+            required: [type, id, sync_seq]
+            properties:
+              type: { type: string }
+              id: { type: string, format: uuid }
+              sync_seq: { type: integer }
+        next_since: { type: integer }
+        has_more: { type: boolean }

@@ -1,0 +1,314 @@
+openapi: 3.1.0
+info:
+  title: Property CRM — Ingest API
+  version: 1.0.0
+  description: |
+    Contract for the scraper component. Batched, idempotent upsert of property
+    listings and owner contacts with per-field provenance.
+
+    **Guarantees to the caller:**
+    1. Replaying a batch (same `Idempotency-Key`, same record keys) is always
+       safe: recorded outcomes are returned, no side effects occur.
+    2. A record whose subject was erased is never recreated (suppression is
+       checked before any entity write). The `suppressed` outcome carries no
+       identifying detail and is indistinguishable from success in bulk stats.
+    3. Scraped values never overwrite owner-confirmed or staff-verified values;
+       they are parked as review candidates.
+    4. Records fail individually; a batch is never all-or-nothing.
+
+    Authentication: OAuth2 client-credentials against Keycloak; the service
+    account is scoped to this API only.
+  contact:
+    name: CRM team
+  license:
+    name: Proprietary — internal project contract
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /v1
+tags:
+  - name: ingest
+    description: Batched, idempotent record ingest with per-field provenance
+security:
+  - oauth2ClientCredentials: []
+paths:
+  /ingest/batches:
+    post:
+      operationId: submitBatch
+      tags: [ingest]
+      summary: Submit a batch of records (idempotent)
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestBatch'
+      responses:
+        '202':
+          description: Batch accepted for processing (or replayed).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchAccepted'
+        '409':
+          description: Idempotency-Key reused with a different payload.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Batch-level validation failure (e.g. > 500 records).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /ingest/batches/{batchId}:
+    get:
+      operationId: getBatch
+      tags: [ingest]
+      summary: Batch status and per-record outcomes
+      parameters:
+        - $ref: '#/components/parameters/BatchId'
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, maximum: 500, default: 100 }
+      responses:
+        '200':
+          description: Batch status with a page of record outcomes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchStatus'
+        '404':
+          description: Unknown batch.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /ingest/batches/{batchId}/replay:
+    post:
+      operationId: replayBatch
+      tags: [ingest]
+      summary: Re-run a batch against current rules (e.g. after a quarantine fix)
+      description: |
+        Replays the stored batch through the current pipeline. Records whose
+        outcome was `created`/`updated`/`unchanged` are skipped; `quarantined`
+        and `failed` records are re-evaluated. Suppression is always re-checked.
+      parameters:
+        - $ref: '#/components/parameters/BatchId'
+      responses:
+        '202':
+          description: Replay scheduled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchAccepted'
+        '404':
+          description: Unknown batch.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '410':
+          description: Raw payloads already purged by retention; replay impossible.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+components:
+  securitySchemes:
+    oauth2ClientCredentials:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://KEYCLOAK_HOST/realms/crm/protocol/openid-connect/token
+          scopes:
+            ingest:write: Submit and replay ingest batches
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, maxLength: 128 }
+      description: |
+        Caller-generated key for the whole batch. Same key + same payload →
+        replay of the stored response. Same key + different payload → 409.
+    BatchId:
+      name: batchId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    IngestBatch:
+      type: object
+      required: [source, records]
+      properties:
+        source:
+          type: object
+          required: [name, kind]
+          properties:
+            name: { type: string, description: 'Registered source name, e.g. portal identifier' }
+            kind: { type: string, enum: [portal_scrape, owner_submission] }
+            run_reference: { type: string, description: Scraper-side run id for cross-log correlation }
+        records:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/IngestRecord'
+    IngestRecord:
+      type: object
+      required: [idempotency_key, kind, payload, provenance]
+      properties:
+        idempotency_key:
+          type: string
+          maxLength: 128
+          description: Unique per source. The record-level replay key.
+        dedupe_key:
+          type: string
+          description: |
+            Caller's best dedupe hint (portal listing id, or normalised
+            address string). The CRM computes its own canonical key; this is
+            used for cross-run correlation and conflict reporting.
+        kind:
+          type: string
+          enum: [property_listing, owner_contact, combined]
+        payload:
+          $ref: '#/components/schemas/RecordPayload'
+        provenance:
+          type: array
+          minItems: 1
+          description: Per-field provenance. Fields not listed inherit the record's first entry.
+          items:
+            $ref: '#/components/schemas/FieldProvenance'
+    RecordPayload:
+      type: object
+      description: At least one of `property`, `contact` per `kind`.
+      properties:
+        property:
+          $ref: '#/components/schemas/PropertyPayload'
+        contact:
+          $ref: '#/components/schemas/ContactPayload'
+    PropertyPayload:
+      type: object
+      required: [address]
+      properties:
+        address:
+          type: object
+          required: [country]
+          properties:
+            raw: { type: string, description: Address exactly as displayed at the source }
+            street: { type: string }
+            number: { type: string }
+            unit: { type: string }
+            postcode: { type: string }
+            city: { type: string }
+            country: { type: string, description: ISO 3166-1 alpha-2 }
+        attributes:
+          type: object
+          description: Structured attributes; unknown keys land in free attributes with provenance.
+          properties:
+            kind: { type: string, enum: [house, apartment, land, commercial, other] }
+            floor_area_sqm: { type: number }
+            bedrooms: { type: integer }
+            epc_rating: { type: string }
+            tenure: { type: string, enum: [freehold, leasehold, unknown] }
+          additionalProperties: true
+        listing:
+          type: object
+          properties:
+            channel: { type: string, enum: [sale, rent] }
+            price: { type: string, description: Decimal string }
+            currency: { type: string, minLength: 3, maxLength: 3 }
+            description: { type: string }
+            source_url: { type: string, format: uri }
+            first_seen_at: { type: string, format: date-time }
+        media:
+          type: array
+          items:
+            type: object
+            required: [url]
+            properties:
+              url: { type: string, format: uri }
+              caption: { type: string }
+              position: { type: integer }
+    ContactPayload:
+      type: object
+      properties:
+        display_name: { type: string }
+        emails:
+          type: array
+          items: { type: string }
+        phones:
+          type: array
+          items: { type: string, description: Any format; CRM normalises to E.164 }
+        role_hint: { type: string, enum: [owner, agent_of_owner, unknown] }
+    FieldProvenance:
+      type: object
+      required: [collected_at, method]
+      properties:
+        field:
+          type: string
+          description: Dot-path into payload (e.g. `property.listing.price`). Omit for the record-default entry.
+        collected_at: { type: string, format: date-time }
+        method: { type: string, enum: [scraped, owner_submitted] }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+    BatchAccepted:
+      type: object
+      required: [batch_id, status]
+      properties:
+        batch_id: { type: string, format: uuid }
+        status: { type: string, enum: [processing, completed] }
+        replayed: { type: boolean, description: True when this response is an idempotent replay }
+    BatchStatus:
+      type: object
+      required: [batch_id, status, stats, records]
+      properties:
+        batch_id: { type: string, format: uuid }
+        status: { type: string, enum: [processing, completed] }
+        stats:
+          type: object
+          description: Outcome counts. `suppressed` is folded into `ok` here by design.
+          properties:
+            total: { type: integer }
+            ok: { type: integer }
+            quarantined: { type: integer }
+            failed: { type: integer }
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecordOutcome'
+        next_cursor: { type: [string, 'null'] }
+    RecordOutcome:
+      type: object
+      required: [idempotency_key, outcome]
+      properties:
+        idempotency_key: { type: string }
+        outcome:
+          type: string
+          enum: [created, updated, unchanged, quarantined, suppressed, failed]
+          description: |
+            `suppressed`: record dropped, do not re-send; carries no further detail.
+            Enum is CLOSED — new outcomes require a version bump.
+        entity:
+          type: object
+          description: Present for created/updated/unchanged.
+          properties:
+            property_id: { type: string, format: uuid }
+            contact_id: { type: string, format: uuid }
+        quarantine_reason:
+          type: string
+          enum: [low_confidence, contradiction, near_duplicate]
+        problem_code: { type: string, description: Machine code for `failed` }
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string, description: Stable machine code }

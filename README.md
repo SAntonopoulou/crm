@@ -13,7 +13,7 @@ Design phase — all seven deliverable maps are up for review. Implementation st
 | 1 | Domain model & ERD | [domain-model.md](docs/domain-model.md) | module map, per-module ERDs, the four state machines, cross-cutting mechanics, flagged legal/architectural risks |
 | 2 | Migration set | [migration-plan.md](docs/migration-plan.md) | SQL-first tooling, migration sequence, index plan justified against the dispatch & availability hot paths, partitioning, DB roles |
 | 3 | Module implementation | [module-plan.md](docs/module-plan.md) | build order & dependencies, per-module scope and definition of done, shared kernel rules |
-| 4 | API specification | [api-specification.md](docs/api-specification.md) | versioning & deprecation, ingest contract (scraper team), client contract (web/Flutter team), claim semantics, delta sync, min-version gate |
+| 4 | API specification | **[api/openapi/](api/openapi/) (contract of record)** + [api-specification.md](docs/api-specification.md) | frozen OpenAPI 3.1 contracts — [`crm-v1.yaml`](api/openapi/crm-v1.yaml) (client team), [`ingest-v1.yaml`](api/openapi/ingest-v1.yaml) (scraper team); change policy & mock-server workflow in [api/README.md](api/README.md) |
 | 5 | Event catalogue | [event-catalogue.md](docs/event-catalogue.md) | outbox/webhook envelope, PII-minimal payload policy, full event list with triggers and consumers, consumer obligations |
 | 6 | Test suite | [test-strategy.md](docs/test-strategy.md) | pyramid & tooling, concrete designs for the seven mandated scenarios, CI gates |
 | 7 | Operational runbook | [runbook.md](docs/runbook.md) | dispatch tuning parameters, job & retention schedules, 72-hour breach procedure, restore-with-erasure-consistency, alert thresholds |
