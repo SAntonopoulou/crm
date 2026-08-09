@@ -127,6 +127,71 @@ export interface CoreIdempotencyKey {
   response_status: number | null;
 }
 
+export interface CoreIngestRecord {
+  contact_id: string | null;
+  created_at: Generated<Timestamp>;
+  dedupe_key: string | null;
+  id: Generated<string>;
+  idempotency_key: string;
+  kind: string;
+  outcome: string | null;
+  payload: Json | null;
+  problem_code: string | null;
+  property_id: string | null;
+  quarantine_reason: string | null;
+  run_id: string;
+  source_id: string;
+}
+
+export interface CoreIngestRun {
+  finished_at: Timestamp | null;
+  id: Generated<string>;
+  idempotency_key: string;
+  request_hash: string;
+  source_id: string;
+  started_at: Generated<Timestamp>;
+  stats: Generated<Json>;
+  status: Generated<string>;
+}
+
+export interface CoreListing {
+  channel: string;
+  created_at: Generated<Timestamp>;
+  currency: Generated<string>;
+  description: string | null;
+  id: Generated<string>;
+  price: Numeric | null;
+  property_id: string;
+  source_url: string | null;
+  state: Generated<string>;
+  state_entered_at: Generated<Timestamp>;
+  sync_seq: Generated<Int8>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface CoreListingChange {
+  changed_at: Generated<Timestamp>;
+  field: string;
+  id: Generated<string>;
+  listing_id: string;
+  new_value: Json | null;
+  old_value: Json | null;
+  provenance_id: string | null;
+}
+
+export interface CoreMediaAsset {
+  caption: string | null;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  kind: Generated<string>;
+  listing_id: string | null;
+  position: Generated<number>;
+  property_id: string;
+  rights_status: Generated<string>;
+  storage_key: string | null;
+  url: string | null;
+}
+
 export interface CoreOrganisation {
   created_at: Generated<Timestamp>;
   id: Generated<string>;
@@ -155,6 +220,84 @@ export interface CoreOutboxEvent {
   seq: Generated<Int8>;
 }
 
+export interface CoreProperty {
+  address_normalised: Json;
+  bedrooms: number | null;
+  canonical_key: string;
+  created_at: Generated<Timestamp>;
+  epc_rating: string | null;
+  features: Generated<Json>;
+  floor_area_sqm: Numeric | null;
+  free_attributes: Generated<Json>;
+  geo_point: string | null;
+  id: Generated<string>;
+  kind: string | null;
+  merged_into: string | null;
+  occupancy: string | null;
+  sync_seq: Generated<Int8>;
+  tenure: string | null;
+  timezone: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface CorePropertyDocument {
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp | null;
+  id: Generated<string>;
+  issued_at: Timestamp | null;
+  kind: string;
+  property_id: string;
+  storage_key: string;
+  verification_state: Generated<string>;
+}
+
+export interface CorePropertyMerge {
+  absorbed_id: string;
+  id: Generated<string>;
+  merged_at: Generated<Timestamp>;
+  merged_by: string | null;
+  pre_merge_snapshot: Json;
+  surviving_id: string;
+  unmerged_at: Timestamp | null;
+}
+
+export interface CorePropertyParty {
+  contact_id: string;
+  id: Generated<string>;
+  ownership_share: Numeric | null;
+  property_id: string;
+  role: string;
+  validity: Generated<string>;
+}
+
+export interface CoreQuarantineItem {
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  ingest_record_id: string;
+  reason: string;
+  resolution: Json | null;
+  reviewed_by: string | null;
+  state: Generated<string>;
+}
+
+export interface CoreSource {
+  created_at: Generated<Timestamp>;
+  default_lawful_basis: Generated<string>;
+  enabled: Generated<boolean>;
+  id: Generated<string>;
+  kind: string;
+  name: string;
+}
+
+export interface CoreSuppressionEntry {
+  created_at: Generated<Timestamp>;
+  dsr_id: string | null;
+  id: Generated<string>;
+  kind: string;
+  reason: Generated<string>;
+  value_hmac: string;
+}
+
 export interface CoreTombstone {
   deleted_at: Generated<Timestamp>;
   entity_id: string;
@@ -173,8 +316,20 @@ export interface DB {
   "core.field_precedence_rule": CoreFieldPrecedenceRule;
   "core.field_provenance": CoreFieldProvenance;
   "core.idempotency_key": CoreIdempotencyKey;
+  "core.ingest_record": CoreIngestRecord;
+  "core.ingest_run": CoreIngestRun;
+  "core.listing": CoreListing;
+  "core.listing_change": CoreListingChange;
+  "core.media_asset": CoreMediaAsset;
   "core.org_membership": CoreOrgMembership;
   "core.organisation": CoreOrganisation;
   "core.outbox_event": CoreOutboxEvent;
+  "core.property": CoreProperty;
+  "core.property_document": CorePropertyDocument;
+  "core.property_merge": CorePropertyMerge;
+  "core.property_party": CorePropertyParty;
+  "core.quarantine_item": CoreQuarantineItem;
+  "core.source": CoreSource;
+  "core.suppression_entry": CoreSuppressionEntry;
   "core.tombstone": CoreTombstone;
 }
