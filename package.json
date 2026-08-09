@@ -21,6 +21,7 @@
     "@nestjs/platform-express": "^11.1.28",
     "bullmq": "^6.0.9",
     "ioredis": "^6.0.0",
+    "jose": "^6.2.8",
     "kysely": "^0.29.4",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",

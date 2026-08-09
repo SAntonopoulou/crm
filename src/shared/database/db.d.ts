@@ -23,7 +23,40 @@ export type JsonPrimitive = boolean | number | string | null;
 
 export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
+export type Numeric = ColumnType<string, number | string, number | string>;
+
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
+
+export interface AuditPiiAccessLog {
+  action: string;
+  actor_id: string;
+  at: Generated<Timestamp>;
+  entity_field: string;
+  reason: string | null;
+  request_context: Generated<Json>;
+  seq: Generated<Int8>;
+  subject_contact_id: string | null;
+}
+
+export interface CoreFieldPrecedenceRule {
+  entity_type: string;
+  field_name: string;
+  method_ranking: Json;
+}
+
+export interface CoreFieldProvenance {
+  candidate: Json | null;
+  collected_at: Timestamp;
+  confidence: Numeric | null;
+  created_at: Generated<Timestamp>;
+  entity_id: string;
+  entity_type: string;
+  field_name: string;
+  id: Generated<string>;
+  method: string;
+  source_id: string | null;
+  updated_at: Generated<Timestamp>;
+}
 
 export interface CoreIdempotencyKey {
   actor_id: string;
@@ -55,6 +88,9 @@ export interface CoreTombstone {
 }
 
 export interface DB {
+  "audit.pii_access_log": AuditPiiAccessLog;
+  "core.field_precedence_rule": CoreFieldPrecedenceRule;
+  "core.field_provenance": CoreFieldProvenance;
   "core.idempotency_key": CoreIdempotencyKey;
   "core.outbox_event": CoreOutboxEvent;
   "core.tombstone": CoreTombstone;
