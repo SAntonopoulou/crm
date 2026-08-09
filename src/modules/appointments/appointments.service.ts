@@ -348,6 +348,8 @@ export class AppointmentsService {
       return appointment.id;
     });
     await this.jobs?.cancel(`hold:${holdId}`);
+    // Kick off agent dispatch (handler registered by the dispatch module).
+    await this.jobs?.schedule('dispatch.start', { appointmentId }, this.clock.now());
     return this.getAppointment(appointmentId);
   }
 

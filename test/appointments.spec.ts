@@ -33,6 +33,7 @@ describe('appointments (#19)', () => {
     registry.register(JOB_HOLD_EXPIRE, (p) =>
       appointments.expireHold((p as { holdId: string }).holdId),
     );
+    registry.register('dispatch.start', async () => {}); // real handler tested in dispatch.spec
   });
 
   afterAll(async () => {

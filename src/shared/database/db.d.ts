@@ -38,6 +38,17 @@ export interface AuditPiiAccessLog {
   subject_contact_id: string | null;
 }
 
+export interface CoreAccessGrant {
+  appointment_id: string;
+  created_at: Generated<Timestamp>;
+  during: string;
+  grantee_agent_id: string;
+  id: Generated<string>;
+  purpose: Generated<string>;
+  revoked_at: Timestamp | null;
+  subject_contact_id: string;
+}
+
 export interface CoreActivity {
   actor_id: string | null;
   contact_id: string | null;
@@ -112,6 +123,19 @@ export interface CoreAppointmentFeedback {
   structured: Generated<Json>;
 }
 
+export interface CoreAssignmentAgreement {
+  accepted_at: Timestamp;
+  agent_id: string;
+  appointment_id: string;
+  device_fingerprint: string | null;
+  exclusivity_ends_at: Timestamp;
+  id: Generated<string>;
+  ip: string | null;
+  offer_id: string;
+  terms_snapshot: Json;
+  terms_version_id: string | null;
+}
+
 export interface CoreAttendanceProof {
   appointment_id: string;
   at: Generated<Timestamp>;
@@ -120,6 +144,27 @@ export interface CoreAttendanceProof {
   id: Generated<string>;
   method: string;
   party: string;
+}
+
+export interface CoreAttribution {
+  agreement_id: string;
+  buyer_contact_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  property_id: string;
+  state: Generated<string>;
+  window_ends_at: Timestamp;
+}
+
+export interface CoreCommissionStatement {
+  amount: Numeric;
+  attribution_id: string;
+  created_at: Generated<Timestamp>;
+  currency: Generated<string>;
+  deal_value: Numeric;
+  id: Generated<string>;
+  rate_snapshot: Json;
+  state: Generated<string>;
 }
 
 export interface CoreContact {
@@ -188,6 +233,52 @@ export interface CoreCoverageArea {
   postcodes: string[] | null;
 }
 
+export interface CoreDispatch {
+  appointment_id: string;
+  claimed_at: Timestamp | null;
+  config_snapshot: Generated<Json>;
+  created_at: Generated<Timestamp>;
+  escalation_rung: Generated<number>;
+  id: Generated<string>;
+  state: Generated<string>;
+  strategy: string;
+  sync_seq: Generated<Int8>;
+  updated_at: Generated<Timestamp>;
+  winning_offer_id: string | null;
+}
+
+export interface CoreDispatchCandidate {
+  agent_id: string;
+  considered_at: Generated<Timestamp>;
+  dispatch_id: string;
+  excluded_reason: string | null;
+  id: Generated<string>;
+  rank: number;
+  score: Numeric;
+  score_components: Json;
+}
+
+export interface CoreDispatchOffer {
+  agent_id: string;
+  created_at: Generated<Timestamp>;
+  dispatch_id: string;
+  id: Generated<string>;
+  responded_at: Timestamp | null;
+  state: Generated<string>;
+  ttl_expires_at: Timestamp;
+}
+
+export interface CoreDispute {
+  attribution_id: string;
+  created_at: Generated<Timestamp>;
+  evidence: Generated<Json>;
+  id: Generated<string>;
+  raised_by: string;
+  resolution: Json | null;
+  resolved_by: string | null;
+  state: Generated<string>;
+}
+
 export interface CoreFieldPrecedenceRule {
   entity_type: string;
   field_name: string;
@@ -243,6 +334,15 @@ export interface CoreIngestRun {
   started_at: Generated<Timestamp>;
   stats: Generated<Json>;
   status: Generated<string>;
+}
+
+export interface CoreLeadTouch {
+  agent_id: string;
+  at: Generated<Timestamp>;
+  buyer_contact_id: string;
+  id: Generated<string>;
+  kind: string;
+  property_id: string;
 }
 
 export interface CoreListing {
@@ -556,13 +656,17 @@ export interface CoreWaitlistEntry {
 
 export interface DB {
   "audit.pii_access_log": AuditPiiAccessLog;
+  "core.access_grant": CoreAccessGrant;
   "core.activity": CoreActivity;
   "core.agent_absence": CoreAgentAbsence;
   "core.agent_document": CoreAgentDocument;
   "core.agent_profile": CoreAgentProfile;
   "core.appointment": CoreAppointment;
   "core.appointment_feedback": CoreAppointmentFeedback;
+  "core.assignment_agreement": CoreAssignmentAgreement;
   "core.attendance_proof": CoreAttendanceProof;
+  "core.attribution": CoreAttribution;
+  "core.commission_statement": CoreCommissionStatement;
   "core.contact": CoreContact;
   "core.contact_channel": CoreContactChannel;
   "core.contact_merge": CoreContactMerge;
@@ -570,11 +674,16 @@ export interface DB {
   "core.contact_role": CoreContactRole;
   "core.contact_sensitive": CoreContactSensitive;
   "core.coverage_area": CoreCoverageArea;
+  "core.dispatch": CoreDispatch;
+  "core.dispatch_candidate": CoreDispatchCandidate;
+  "core.dispatch_offer": CoreDispatchOffer;
+  "core.dispute": CoreDispute;
   "core.field_precedence_rule": CoreFieldPrecedenceRule;
   "core.field_provenance": CoreFieldProvenance;
   "core.idempotency_key": CoreIdempotencyKey;
   "core.ingest_record": CoreIngestRecord;
   "core.ingest_run": CoreIngestRun;
+  "core.lead_touch": CoreLeadTouch;
   "core.listing": CoreListing;
   "core.listing_change": CoreListingChange;
   "core.match": CoreMatch;

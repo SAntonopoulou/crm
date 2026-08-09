@@ -8,6 +8,7 @@ export default defineConfig({
     testTimeout: 60_000,
     hookTimeout: 120_000,
     setupFiles: ['test/setup.ts'],
+    globalSetup: ['test/global-setup.ts'],
     // Integration tests share one Postgres; parallel files race on
     // global state (outbox counts, relay drains).
     fileParallelism: false,
