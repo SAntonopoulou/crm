@@ -38,6 +38,65 @@ export interface AuditPiiAccessLog {
   subject_contact_id: string | null;
 }
 
+export interface CoreContact {
+  created_at: Generated<Timestamp>;
+  dek_id: string | null;
+  display_name: string | null;
+  id: Generated<string>;
+  idp_subject_id: string | null;
+  lifecycle_state: Generated<string>;
+  locale: Generated<string>;
+  merged_into: string | null;
+  processing_restricted: Generated<boolean>;
+  sync_seq: Generated<Int8>;
+  timezone: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface CoreContactChannel {
+  contact_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  is_preferred: Generated<boolean>;
+  kind: string;
+  value_normalised: string;
+  verification_state: Generated<string>;
+}
+
+export interface CoreContactMerge {
+  absorbed_id: string;
+  id: Generated<string>;
+  merged_at: Generated<Timestamp>;
+  merged_by: string | null;
+  pre_merge_snapshot: Json;
+  surviving_id: string;
+  unmerged_at: Timestamp | null;
+}
+
+export interface CoreContactRelationship {
+  from_contact_id: string;
+  id: Generated<string>;
+  kind: string;
+  to_contact_id: string;
+  validity: Generated<string>;
+}
+
+export interface CoreContactRole {
+  activated_at: Generated<Timestamp>;
+  contact_id: string;
+  ended_at: Timestamp | null;
+  id: Generated<string>;
+  role: string;
+  state: Generated<string>;
+}
+
+export interface CoreContactSensitive {
+  contact_id: string;
+  iban_enc: Buffer | null;
+  national_id_enc: Buffer | null;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface CoreFieldPrecedenceRule {
   entity_type: string;
   field_name: string;
@@ -68,6 +127,22 @@ export interface CoreIdempotencyKey {
   response_status: number | null;
 }
 
+export interface CoreOrganisation {
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  kind: string;
+  name: string;
+  registration_number: string | null;
+}
+
+export interface CoreOrgMembership {
+  contact_id: string;
+  id: Generated<string>;
+  organisation_id: string;
+  role_in_org: string;
+  validity: Generated<string>;
+}
+
 export interface CoreOutboxEvent {
   aggregate_id: string;
   aggregate_type: string;
@@ -89,9 +164,17 @@ export interface CoreTombstone {
 
 export interface DB {
   "audit.pii_access_log": AuditPiiAccessLog;
+  "core.contact": CoreContact;
+  "core.contact_channel": CoreContactChannel;
+  "core.contact_merge": CoreContactMerge;
+  "core.contact_relationship": CoreContactRelationship;
+  "core.contact_role": CoreContactRole;
+  "core.contact_sensitive": CoreContactSensitive;
   "core.field_precedence_rule": CoreFieldPrecedenceRule;
   "core.field_provenance": CoreFieldProvenance;
   "core.idempotency_key": CoreIdempotencyKey;
+  "core.org_membership": CoreOrgMembership;
+  "core.organisation": CoreOrganisation;
   "core.outbox_event": CoreOutboxEvent;
   "core.tombstone": CoreTombstone;
 }
