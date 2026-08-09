@@ -48,6 +48,41 @@ export interface CoreActivity {
   property_id: string | null;
 }
 
+export interface CoreAgentAbsence {
+  agent_id: string;
+  during: string;
+  id: Generated<string>;
+  reason: string | null;
+}
+
+export interface CoreAgentDocument {
+  agent_id: string;
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp | null;
+  id: Generated<string>;
+  kind: string;
+  storage_key: string;
+  verification_state: Generated<string>;
+  verified_by: string | null;
+}
+
+export interface CoreAgentProfile {
+  capacity_max_active: Generated<number>;
+  commission_terms: Generated<Json>;
+  contact_id: string;
+  created_at: Generated<Timestamp>;
+  insurance_expires_at: Timestamp | null;
+  languages: Generated<string[]>;
+  licence_expires_at: Timestamp | null;
+  licence_number: string | null;
+  specialisms: Generated<string[]>;
+  state: Generated<string>;
+  suspension_reason: string | null;
+  sync_seq: Generated<Int8>;
+  updated_at: Generated<Timestamp>;
+  working_hours: Generated<Json>;
+}
+
 export interface CoreAppointment {
   agent_id: string | null;
   cancel_reason: string | null;
@@ -144,6 +179,13 @@ export interface CoreContactSensitive {
   iban_enc: Buffer | null;
   national_id_enc: Buffer | null;
   updated_at: Generated<Timestamp>;
+}
+
+export interface CoreCoverageArea {
+  agent_id: string;
+  area: string | null;
+  id: Generated<string>;
+  postcodes: string[] | null;
 }
 
 export interface CoreFieldPrecedenceRule {
@@ -472,6 +514,23 @@ export interface CoreTask {
   state: Generated<string>;
 }
 
+export interface CoreTermsAcceptance {
+  accepted_at: Generated<Timestamp>;
+  agent_id: string;
+  device_fingerprint: string | null;
+  id: Generated<string>;
+  ip: string | null;
+  terms_version_id: string;
+}
+
+export interface CoreTermsVersion {
+  body: string;
+  effective_from: Generated<Timestamp>;
+  id: Generated<string>;
+  locale: Generated<string>;
+  version: number;
+}
+
 export interface CoreTombstone {
   deleted_at: Generated<Timestamp>;
   entity_id: string;
@@ -498,6 +557,9 @@ export interface CoreWaitlistEntry {
 export interface DB {
   "audit.pii_access_log": AuditPiiAccessLog;
   "core.activity": CoreActivity;
+  "core.agent_absence": CoreAgentAbsence;
+  "core.agent_document": CoreAgentDocument;
+  "core.agent_profile": CoreAgentProfile;
   "core.appointment": CoreAppointment;
   "core.appointment_feedback": CoreAppointmentFeedback;
   "core.attendance_proof": CoreAttendanceProof;
@@ -507,6 +569,7 @@ export interface DB {
   "core.contact_relationship": CoreContactRelationship;
   "core.contact_role": CoreContactRole;
   "core.contact_sensitive": CoreContactSensitive;
+  "core.coverage_area": CoreCoverageArea;
   "core.field_precedence_rule": CoreFieldPrecedenceRule;
   "core.field_provenance": CoreFieldProvenance;
   "core.idempotency_key": CoreIdempotencyKey;
@@ -535,6 +598,8 @@ export interface DB {
   "core.stage_transition": CoreStageTransition;
   "core.suppression_entry": CoreSuppressionEntry;
   "core.task": CoreTask;
+  "core.terms_acceptance": CoreTermsAcceptance;
+  "core.terms_version": CoreTermsVersion;
   "core.tombstone": CoreTombstone;
   "core.viewing_outcome": CoreViewingOutcome;
   "core.waitlist_entry": CoreWaitlistEntry;
