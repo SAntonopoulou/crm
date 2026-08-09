@@ -7,6 +7,7 @@ import { KernelModule } from './shared/kernel.module';
 import { AuthModule } from './shared/auth/auth.module';
 import { ContactsModule } from './modules/contacts/contacts.module';
 import { PropertiesModule } from './modules/properties/properties.module';
+import { PortfolioModule } from './modules/portfolio/portfolio.module';
 import { PiiAccessInterceptor } from './shared/audit/pii-access.interceptor';
 import { VersionGateMiddleware } from './shared/auth/version-gate.middleware';
 
@@ -18,6 +19,7 @@ import { VersionGateMiddleware } from './shared/auth/version-gate.middleware';
     AuthModule,
     ContactsModule,
     PropertiesModule,
+    PortfolioModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_INTERCEPTOR, useClass: PiiAccessInterceptor }],

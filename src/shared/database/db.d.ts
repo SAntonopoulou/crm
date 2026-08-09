@@ -220,6 +220,23 @@ export interface CoreOutboxEvent {
   seq: Generated<Int8>;
 }
 
+export interface CorePortfolioEntry {
+  added_at: Generated<Timestamp>;
+  contact_id: string;
+  created_at: Generated<Timestamp>;
+  currency: Generated<string>;
+  id: Generated<string>;
+  last_estimated_at: Timestamp | null;
+  last_value_estimate: Numeric | null;
+  monthly_expenses: Numeric;
+  monthly_rental_income: Numeric;
+  property_id: string;
+  purchase_price: Numeric;
+  status: Generated<string>;
+  sync_seq: Generated<Int8>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface CoreProperty {
   address_normalised: Json;
   bedrooms: number | null;
@@ -324,6 +341,7 @@ export interface DB {
   "core.org_membership": CoreOrgMembership;
   "core.organisation": CoreOrganisation;
   "core.outbox_event": CoreOutboxEvent;
+  "core.portfolio_entry": CorePortfolioEntry;
   "core.property": CoreProperty;
   "core.property_document": CorePropertyDocument;
   "core.property_merge": CorePropertyMerge;
