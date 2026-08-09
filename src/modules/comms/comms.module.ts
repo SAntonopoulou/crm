@@ -8,12 +8,13 @@ import {
   JOB_SEQUENCE_STEP,
   MessageProviderRegistry,
 } from './comms.service';
+import { TemplatesService } from './templates.service';
 
 @Module({
   imports: [ContactsModule, PipelinesModule],
-  providers: [CommsService, MessageProviderRegistry],
+  providers: [CommsService, MessageProviderRegistry, TemplatesService],
   controllers: [ConversationsController],
-  exports: [CommsService],
+  exports: [CommsService, TemplatesService],
 })
 export class CommsModule implements OnModuleInit {
   constructor(

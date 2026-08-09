@@ -13,6 +13,6 @@ import { SyncService } from './sync.service';
     { provide: StoragePort, useClass: LocalDiskStorage },
   ],
   controllers: [PlatformController],
-  exports: [SyncService],
+  exports: [SyncService, StoragePort],
 })
 export class PlatformModule {}

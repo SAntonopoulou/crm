@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   ForbiddenException,
@@ -16,6 +16,7 @@ const MAX_BYTES = 20 * 1024 * 1024;
 /** Object-storage seam. S3/GCS adapter at deploy; local disk in dev. */
 export abstract class StoragePort {
   abstract put(key: string, data: Buffer): Promise<void>;
+  abstract get(key: string): Promise<Buffer>;
 }
 
 @Injectable()
@@ -31,6 +32,10 @@ export class LocalDiskStorage extends StoragePort {
     const path = join(this.root, key);
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, data);
+  }
+
+  async get(key: string): Promise<Buffer> {
+    return readFile(join(this.root, key));
   }
 }
 

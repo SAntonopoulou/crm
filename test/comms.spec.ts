@@ -13,6 +13,7 @@ import {
   MessageProvider,
   JOB_SEQUENCE_STEP,
 } from '../src/modules/comms/comms.service';
+import { TemplatesService } from '../src/modules/comms/templates.service';
 
 const uuid = () => crypto.randomUUID();
 
@@ -34,6 +35,7 @@ describe('comms (#23)', () => {
   let scheduler: InlineJobScheduler;
   let comms: CommsService;
   let contacts: ContactsService;
+  let templates: TemplatesService;
   let emailProvider: FakeMessageProvider;
 
   beforeAll(() => {
@@ -46,8 +48,9 @@ describe('comms (#23)', () => {
     emailProvider = new FakeMessageProvider();
     providers.bind('email', emailProvider);
     contacts = new ContactsService(db);
+    templates = new TemplatesService(db);
     const pipelines = new PipelinesService(db, clock, scheduler, config);
-    comms = new CommsService(db, clock, providers, pipelines, scheduler);
+    comms = new CommsService(db, clock, providers, templates, pipelines, scheduler);
     registry.register(JOB_SEQUENCE_STEP, (p) =>
       comms.runSequenceStep((p as { enrollmentId: string }).enrollmentId),
     );
@@ -266,6 +269,55 @@ describe('comms (#23)', () => {
         body: 'who am I?',
       }),
     ).toBeNull();
+  });
+
+  it('#39: templates render merge fields with locale fallback and record the version', async () => {
+    const key = `tpl-${uuid()}`;
+    await templates.upsert(key, 'transactional', 'en', 'Hello {{name}}, your viewing is at {{time}}.');
+    const frId = await templates.upsert(key, 'transactional', 'fr', 'Bonjour {{name}}, votre visite est à {{time}}.');
+
+    // French contact gets the French version…
+    const contactId = await contacts.resolveOrProvision(`kc-${uuid()}`);
+    await db.kysely
+      .updateTable('core.contact')
+      .set({ locale: 'fr' })
+      .where('id', '=', contactId)
+      .execute();
+    const sent = await comms.send({
+      contactId,
+      channel: 'in_app',
+      category: 'transactional',
+      templateKey: key,
+      templateVars: { name: 'Nora', time: '14:00' },
+    });
+    const message = await db.kysely
+      .selectFrom('core.message')
+      .selectAll()
+      .where('id', '=', sent.messageId)
+      .executeTakeFirstOrThrow();
+    expect(message.body).toBe('Bonjour Nora, votre visite est à 14:00.');
+    expect(message.template_version_id).toBe(frId);
+
+    // …a Dutch contact falls back to en (no nl version exists).
+    const nlContact = await contacts.resolveOrProvision(`kc-${uuid()}`);
+    await db.kysely
+      .updateTable('core.contact')
+      .set({ locale: 'nl' })
+      .where('id', '=', nlContact)
+      .execute();
+    const fallback = await comms.send({
+      contactId: nlContact,
+      channel: 'in_app',
+      category: 'transactional',
+      templateKey: key,
+      templateVars: { name: 'Ward', time: '15:00' },
+    });
+    const fallbackMessage = await db.kysely
+      .selectFrom('core.message')
+      .select('body')
+      .where('id', '=', fallback.messageId)
+      .executeTakeFirstOrThrow();
+    expect(fallbackMessage.body).toBe('Hello Ward, your viewing is at 15:00.');
   });
 
   it('ARCHITECTURE: the message provider registry is only referenced inside the comms module', () => {

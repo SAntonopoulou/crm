@@ -9,6 +9,7 @@ import { JobScheduler } from '../../shared/jobs/job-scheduler';
 import { addDays, localDateOf, wallClockToUtc } from '../../shared/time';
 import { normaliseChannelValue } from '../contacts/contacts.service';
 import { PipelinesService } from '../pipelines/pipelines.service';
+import { TemplatesService } from './templates.service';
 
 export const JOB_SEQUENCE_STEP = 'comms.sequence_step';
 
@@ -45,7 +46,10 @@ export interface OutboundDraft {
   contactId: string;
   channel: MessageChannel;
   category: MessageCategory;
-  body: string;
+  /** Literal body, or omit and provide templateKey. */
+  body?: string;
+  templateKey?: string;
+  templateVars?: Record<string, string | number>;
   propertyId?: string;
   conversationId?: string;
   templateVersionId?: string;
@@ -72,6 +76,7 @@ export class CommsService {
     private readonly db: Db,
     private readonly clock: Clock,
     private readonly providers: MessageProviderRegistry,
+    private readonly templates: TemplatesService,
     private readonly pipelines: PipelinesService,
     @Optional() private readonly jobs?: JobScheduler,
   ) {}
@@ -145,6 +150,30 @@ export class CommsService {
    */
   async send(draft: OutboundDraft): Promise<{ messageId: string; state: string }> {
     const now = this.clock.now();
+
+    // Template path: render in the recipient's locale (en fallback) and
+    // record the exact version sent.
+    if (draft.templateKey) {
+      const contact = await this.db.kysely
+        .selectFrom('core.contact')
+        .select('locale')
+        .where('id', '=', draft.contactId)
+        .executeTakeFirst();
+      const rendered = await this.templates.render(
+        draft.templateKey,
+        contact?.locale ?? 'en',
+        draft.templateVars ?? {},
+      );
+      draft = {
+        ...draft,
+        body: rendered.body,
+        templateVersionId: rendered.templateVersionId,
+      };
+    }
+    if (!draft.body) {
+      throw new NotFoundException({ code: 'body_or_template_required' });
+    }
+
     const conversationId =
       draft.conversationId ??
       (await this.findOrCreateConversation(draft.contactId, draft.propertyId));
@@ -424,7 +453,9 @@ export class CommsService {
     const steps = enrollment.steps as {
       channel: MessageChannel;
       category: MessageCategory;
-      body: string;
+      body?: string;
+      template_key?: string;
+      vars?: Record<string, string | number>;
       delay_minutes: number;
     }[];
     const step = steps[enrollment.current_step];
@@ -442,6 +473,8 @@ export class CommsService {
       channel: step.channel,
       category: step.category,
       body: step.body,
+      templateKey: step.template_key,
+      templateVars: step.vars,
     });
     if (result.state === 'blocked') {
       await this.db.kysely

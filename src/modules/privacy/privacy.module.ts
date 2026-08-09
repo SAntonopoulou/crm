@@ -1,6 +1,7 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { JobRegistry } from '../../shared/jobs/job-scheduler';
 import { ContactsModule } from '../contacts/contacts.module';
+import { PlatformModule } from '../platform/platform.module';
 import { PropertiesModule } from '../properties/properties.module';
 import { PrivacyController } from './privacy.controller';
 import {
@@ -15,7 +16,7 @@ import {
 } from './privacy.service';
 
 @Module({
-  imports: [ContactsModule, PropertiesModule],
+  imports: [ContactsModule, PropertiesModule, PlatformModule],
   providers: [
     PrivacyService,
     { provide: IdpAdminPort, useClass: LoggingIdpAdmin },

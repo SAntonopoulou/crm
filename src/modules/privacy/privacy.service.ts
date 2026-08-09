@@ -9,6 +9,7 @@ import { Db } from '../../shared/database/db.service';
 import { Clock } from '../../shared/jobs/clock';
 import { JobScheduler } from '../../shared/jobs/job-scheduler';
 import { ContactsService } from '../contacts/contacts.service';
+import { StoragePort } from '../platform/media.service';
 import { SuppressionService } from '../properties/suppression.service';
 
 export const JOB_DSR_ESCALATION = 'privacy.dsr_escalation';
@@ -52,6 +53,7 @@ export class PrivacyService {
     private readonly idp: IdpAdminPort,
     private readonly kms: KmsPort,
     @Optional() private readonly jobs?: JobScheduler,
+    @Optional() private readonly storage?: StoragePort,
   ) {}
 
   // ── DSR queue ──────────────────────────────────────────────────────
@@ -233,6 +235,126 @@ export class PrivacyService {
       });
     });
     await this.jobs?.cancel(`dsr_esc:${dsrId}`);
+  }
+
+  /**
+   * Access / portability: assemble everything we hold on the subject into a
+   * machine-readable export behind the StoragePort, then complete the DSR.
+   */
+  async processAccessRequest(dsrId: string, actorId: string): Promise<string> {
+    if (!this.storage) {
+      throw new NotFoundException({ code: 'storage_not_configured' });
+    }
+    const dsr = await this.db.kysely
+      .selectFrom('privacy.dsr')
+      .selectAll()
+      .where('id', '=', dsrId)
+      .where('kind', 'in', ['access', 'portability'])
+      .executeTakeFirst();
+    if (!dsr) throw new NotFoundException({ code: 'dsr_not_found' });
+    if (['completed', 'refused'].includes(dsr.state)) {
+      return (dsr.completion_audit as { export_key?: string })?.export_key ?? '';
+    }
+
+    const contactId = dsr.contact_id;
+    const [contact, channels, roles, consents, activities, appointments, portfolio, messages, dsrs] =
+      await Promise.all([
+        this.db.kysely.selectFrom('core.contact')
+          .select(['id', 'lifecycle_state', 'display_name', 'locale', 'timezone', 'created_at'])
+          .where('id', '=', contactId).executeTakeFirst(),
+        this.db.kysely.selectFrom('core.contact_channel')
+          .select(['kind', 'value_normalised', 'verification_state', 'is_preferred'])
+          .where('contact_id', '=', contactId).execute(),
+        this.db.kysely.selectFrom('core.contact_role')
+          .select(['role', 'state', 'activated_at'])
+          .where('contact_id', '=', contactId).execute(),
+        this.db.kysely.selectFrom('privacy.consent')
+          .select(['purpose', 'wording_version', 'granted_at', 'withdrawn_at'])
+          .where('contact_id', '=', contactId).execute(),
+        this.db.kysely.selectFrom('core.activity')
+          .select(['kind', 'payload', 'occurred_at'])
+          .where('contact_id', '=', contactId).orderBy('occurred_at').execute(),
+        this.db.kysely.selectFrom('core.appointment')
+          .select(['id', 'state', 'kind', 'created_at'])
+          .where('viewer_contact_id', '=', contactId).execute(),
+        this.db.kysely.selectFrom('core.portfolio_entry')
+          .selectAll().where('contact_id', '=', contactId).execute(),
+        this.db.kysely.selectFrom('core.message as m')
+          .innerJoin('core.conversation as c', 'c.id', 'm.conversation_id')
+          .select(['m.direction', 'm.channel', 'm.body', 'm.created_at'])
+          .where('c.contact_id', '=', contactId).orderBy('m.created_at').execute(),
+        this.db.kysely.selectFrom('privacy.dsr')
+          .select(['kind', 'state', 'received_at'])
+          .where('contact_id', '=', contactId).execute(),
+      ]);
+
+    const exportKey = `dsr-exports/${dsrId}.json`;
+    await this.storage.put(
+      exportKey,
+      Buffer.from(
+        JSON.stringify(
+          {
+            generated_at: this.clock.now().toISOString(),
+            dsr_id: dsrId,
+            contact, channels, roles, consents, activities,
+            appointments, portfolio_entries: portfolio, messages, data_requests: dsrs,
+          },
+          null,
+          2,
+        ),
+      ),
+    );
+
+    await this.db.tx(async (ctx) => {
+      await ctx.trx
+        .updateTable('privacy.dsr')
+        .set({
+          state: 'completed',
+          completion_audit: JSON.stringify({
+            completed_at: this.clock.now().toISOString(),
+            actor_id: actorId,
+            export_key: exportKey,
+          }),
+        })
+        .where('id', '=', dsrId)
+        .execute();
+      await ctx.emit({
+        aggregateType: 'dsr',
+        aggregateId: dsrId,
+        eventType: 'dsr.completed',
+        payload: { kind: dsr.kind },
+      });
+    });
+    await this.jobs?.cancel(`dsr_esc:${dsrId}`);
+    // The subject downloading their own export is an audited PII export.
+    await this.audit.record({
+      actorId,
+      subjectContactId: contactId,
+      entityField: 'dsr.export',
+      action: 'export',
+      context: { dsr_id: dsrId },
+    });
+    return exportKey;
+  }
+
+  /** Subject-only download of a completed access/portability export. */
+  async downloadExport(contactId: string, dsrId: string): Promise<Buffer> {
+    if (!this.storage) {
+      throw new NotFoundException({ code: 'storage_not_configured' });
+    }
+    const dsr = await this.db.kysely
+      .selectFrom('privacy.dsr')
+      .select(['contact_id', 'state', 'completion_audit'])
+      .where('id', '=', dsrId)
+      .executeTakeFirst();
+    if (!dsr || dsr.contact_id !== contactId) {
+      throw new NotFoundException({ code: 'dsr_not_found' });
+    }
+    const exportKey = (dsr.completion_audit as { export_key?: string })?.export_key;
+    if (dsr.state !== 'completed' || !exportKey) {
+      throw new NotFoundException({ code: 'export_not_ready' });
+    }
+    return this.storage.get(exportKey);
   }
 
   /** Staff refusal with mandatory grounds (Art 12(5) manifestly unfounded etc.). */

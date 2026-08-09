@@ -16,6 +16,7 @@ import {
   KmsPort,
   JOB_DSR_ESCALATION,
 } from '../src/modules/privacy/privacy.service';
+import { LocalDiskStorage } from '../src/modules/platform/media.service';
 
 const uuid = () => crypto.randomUUID();
 const DAY = 24 * 3_600_000;
@@ -61,7 +62,10 @@ describe('privacy & audit completion (#24)', () => {
     const audit = new AuditLog(db);
     idp = new FakeIdp();
     kms = new FakeKms();
-    privacy = new PrivacyService(db, clock, contacts, suppression, audit, idp, kms, scheduler);
+    const storage = new LocalDiskStorage(
+      new ConfigService({ MEDIA_STORAGE_DIR: 'var/test-uploads' }),
+    );
+    privacy = new PrivacyService(db, clock, contacts, suppression, audit, idp, kms, scheduler, storage);
     const properties = new PropertiesService(db, new ProvenanceResolver(), config);
     ingest = new IngestService(db, properties, contacts, suppression);
     registry.register(JOB_DSR_ESCALATION, (p) =>
@@ -284,6 +288,48 @@ describe('privacy & audit completion (#24)', () => {
       .execute();
     const again = await privacy.contactViewForAgent(agentId, subject);
     expect(again.channels[0].masked).toBe(false);
+  });
+
+  it('#40: access request assembles the cross-table export; only the subject downloads it', async () => {
+    const email = `access-${uuid()}@example.com`;
+    const contactId = await contacts.resolveOrProvision(`kc-${uuid()}`);
+    await contacts.addChannel(contactId, 'email', email, true);
+    await db.kysely
+      .insertInto('privacy.consent')
+      .values({ contact_id: contactId, purpose: 'marketing' })
+      .execute();
+
+    const dsr = await privacy.fileDsr(contactId, 'access');
+    const exportKey = await privacy.processAccessRequest(dsr.id, uuid());
+    expect(exportKey).toContain(dsr.id);
+
+    const dsrRow = await db.kysely
+      .selectFrom('privacy.dsr')
+      .select('state')
+      .where('id', '=', dsr.id)
+      .executeTakeFirstOrThrow();
+    expect(dsrRow.state).toBe('completed');
+
+    const data = JSON.parse(
+      (await privacy.downloadExport(contactId, dsr.id)).toString('utf8'),
+    ) as { channels: { value_normalised: string }[]; consents: unknown[] };
+    expect(data.channels.map((c) => c.value_normalised)).toContain(email);
+    expect(data.consents).toHaveLength(1);
+
+    // A stranger cannot download someone else's life.
+    const stranger = await contacts.resolveOrProvision(`kc-${uuid()}`);
+    await expect(privacy.downloadExport(stranger, dsr.id)).rejects.toMatchObject({
+      response: { code: 'dsr_not_found' },
+    });
+
+    // The export itself is an audited PII action.
+    const exportAudit = await db.kysely
+      .selectFrom('audit.pii_access_log')
+      .select('seq')
+      .where('subject_contact_id', '=', contactId)
+      .where('action', '=', 'export')
+      .execute();
+    expect(exportAudit.length).toBeGreaterThanOrEqual(1);
   });
 
   it('DSR escalates before the one-month deadline', async () => {

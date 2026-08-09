@@ -48,6 +48,15 @@ export class PrivacyController {
     return this.privacy.getDsr(await this.contactId(req), dsrId);
   }
 
+  @Get('dsr/:dsrId/download')
+  async downloadExport(
+    @Req() req: AuthedRequest,
+    @Param('dsrId', ParseUUIDPipe) dsrId: string,
+  ) {
+    const data = await this.privacy.downloadExport(await this.contactId(req), dsrId);
+    return JSON.parse(data.toString('utf8')) as Record<string, unknown>;
+  }
+
   @Get('consents')
   async listConsents(@Req() req: AuthedRequest) {
     return this.privacy.listConsents(await this.contactId(req));

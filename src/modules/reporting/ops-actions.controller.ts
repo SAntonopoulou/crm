@@ -107,6 +107,16 @@ export class OpsActionsController {
     await this.privacy.processErasure(dsrId, await this.staffId(req));
   }
 
+  @Post('dsr/:dsrId/process-access')
+  async processAccess(
+    @Req() req: AuthedRequest,
+    @Param('dsrId', ParseUUIDPipe) dsrId: string,
+  ) {
+    return {
+      export_key: await this.privacy.processAccessRequest(dsrId, await this.staffId(req)),
+    };
+  }
+
   @Post('dsr/:dsrId/refuse')
   @HttpCode(204)
   async refuseDsr(
