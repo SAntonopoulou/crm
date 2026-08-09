@@ -55,6 +55,7 @@ describe('dispatch & attribution (#21)', () => {
     registry.register(JOB_OFFER_TTL, (p) =>
       dispatch.expireOffer((p as { offerId: string }).offerId),
     );
+    registry.register('notification.dispatch_offer', async () => {}); // real handler in notifications.spec
   });
 
   afterAll(async () => {

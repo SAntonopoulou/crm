@@ -233,6 +233,32 @@ export interface CoreCoverageArea {
   postcodes: string[] | null;
 }
 
+export interface CoreDeliveryAttempt {
+  channel: string;
+  created_at: Generated<Timestamp>;
+  device_id: string | null;
+  id: Generated<string>;
+  next_escalation_at: Timestamp | null;
+  notification_id: string;
+  provider_message_id: string | null;
+  state: Generated<string>;
+  step: number;
+}
+
+export interface CoreDevice {
+  app_version: string | null;
+  contact_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  install_id: string;
+  last_seen_at: Generated<Timestamp>;
+  locale: string | null;
+  os_permission_state: string | null;
+  platform: string;
+  push_token: string | null;
+  state: Generated<string>;
+}
+
 export interface CoreDispatch {
   appointment_id: string;
   claimed_at: Timestamp | null;
@@ -391,6 +417,27 @@ export interface CoreMediaAsset {
   rights_status: Generated<string>;
   storage_key: string | null;
   url: string | null;
+}
+
+export interface CoreNotification {
+  acknowledged_at: Timestamp | null;
+  category: string;
+  contact_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  kind: string;
+  payload: Generated<Json>;
+  priority: string;
+  state: Generated<string>;
+}
+
+export interface CoreNotificationPreference {
+  category: string;
+  channel: string;
+  contact_id: string;
+  device_install_id: string | null;
+  id: Generated<string>;
+  opted_out: Generated<boolean>;
 }
 
 export interface CoreOrganisation {
@@ -674,6 +721,8 @@ export interface DB {
   "core.contact_role": CoreContactRole;
   "core.contact_sensitive": CoreContactSensitive;
   "core.coverage_area": CoreCoverageArea;
+  "core.delivery_attempt": CoreDeliveryAttempt;
+  "core.device": CoreDevice;
   "core.dispatch": CoreDispatch;
   "core.dispatch_candidate": CoreDispatchCandidate;
   "core.dispatch_offer": CoreDispatchOffer;
@@ -688,6 +737,8 @@ export interface DB {
   "core.listing_change": CoreListingChange;
   "core.match": CoreMatch;
   "core.media_asset": CoreMediaAsset;
+  "core.notification": CoreNotification;
+  "core.notification_preference": CoreNotificationPreference;
   "core.org_membership": CoreOrgMembership;
   "core.organisation": CoreOrganisation;
   "core.outbox_event": CoreOutboxEvent;

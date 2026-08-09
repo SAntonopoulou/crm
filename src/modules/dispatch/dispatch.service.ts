@@ -291,6 +291,12 @@ export class DispatchService {
         ttl,
         { dedupeId: `offer_ttl:${offer.id}` },
       );
+      // Time-critical notification (handler lives in the notifications module).
+      await this.jobs?.schedule(
+        'notification.dispatch_offer',
+        { offerId: offer.id, agentId: candidate.agent_id, ttlExpiresAt: ttl.toISOString() },
+        now,
+      );
     }
   }
 
