@@ -32,10 +32,13 @@ Contract shipped in 1.1.0 with two small extensions to your proposal:
   property they already own shouldn't have to create-then-patch.
 - `POST` returns `409 portfolio_duplicate` for an already-tracked property.
 
-**Valuation methodology** (comp radius, recency window, minimum comp count) is
-with Sophia as a product decision, as your prompt asked. Entries CRUD + events
-ship first; `current_value_estimate` stays absent until the methodology is
-signed off and the estimator lands.
+**Valuation methodology — decided** (Sophia, 2026-08-09): adaptive radius.
+Comps are same `property_kind`, ±30% floor area, starting 2 km and expanding
+to 5 km only if under the minimum; live + sold/let within 12 months; minimum
+5 comps or **no estimate** (absent, per the contract). Estimate = median €/m²
+× subject area; yield = median comparable rent × 12 / price. The same
+estimator feeds `estimated_rental_yield_percent` on listings, so both fields
+go live together.
 
 ## §3.2 Listing fields — all three added
 
