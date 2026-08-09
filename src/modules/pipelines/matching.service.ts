@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { sql } from 'kysely';
 import { Db } from '../../shared/database/db.service';
+import { systemClock } from '../../shared/jobs/clock';
 
 export const JOB_EVALUATE_LISTING = 'matching.evaluate_listing';
 
@@ -113,7 +114,7 @@ export class MatchingService {
         .updateTable('core.match')
         .set({
           state: feedback,
-          feedback: JSON.stringify({ feedback, at: new Date().toISOString() }),
+          feedback: JSON.stringify({ feedback, at: systemClock.now().toISOString() }),
         })
         .where('id', '=', matchId)
         .execute();

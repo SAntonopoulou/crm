@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint:api": "redocly lint api/openapi/crm-v1.yaml api/openapi/ingest-v1.yaml",
-    "seed": "node scripts/seed.mjs"
+    "seed": "node scripts/seed.mjs",
+    "lint": "eslint src test"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.28",
@@ -38,10 +39,12 @@
     "@types/pg": "^8.21.0",
     "@types/supertest": "^7.2.1",
     "dotenv": "^17.4.2",
+    "eslint": "^10.8.1",
     "kysely-codegen": "^0.20.0",
     "node-pg-migrate": "^9.0.0",
     "supertest": "^7.2.2",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.66.0",
     "unplugin-swc": "^1.5.10",
     "vitest": "^4.1.10"
   },

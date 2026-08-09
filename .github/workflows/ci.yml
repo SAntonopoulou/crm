@@ -51,6 +51,7 @@ jobs:
           git diff --exit-code src/shared/database/db.d.ts \
             || (echo "::error::generated DB types drifted from migrations — run npm run codegen and commit" && exit 1)
       - run: npm run build
+      - run: npm run lint
       - name: Tests (mandated scenarios are unskippable — no .skip in specs)
         run: |
           ! grep -rn "\.skip(\|\.only(" test/ && npm test

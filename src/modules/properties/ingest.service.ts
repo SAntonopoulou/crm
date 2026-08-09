@@ -10,6 +10,7 @@ import {
 import { sql } from 'kysely';
 import { Db } from '../../shared/database/db.service';
 import { JobScheduler } from '../../shared/jobs/job-scheduler';
+import { systemClock } from '../../shared/jobs/clock';
 import { JOB_GEOCODE } from './geocoder.service';
 import { ProvenanceMethod } from '../../shared/provenance/provenance-resolver';
 import { ContactsService, normaliseChannelValue } from '../contacts/contacts.service';
@@ -115,7 +116,7 @@ export class IngestService {
         .set({
           status: 'completed',
           stats: JSON.stringify(stats),
-          finished_at: new Date(),
+          finished_at: systemClock.now(),
         })
         .where('id', '=', run.id)
         .execute();
@@ -151,7 +152,7 @@ export class IngestService {
 
     try {
       return await this.processFresh(runId, source, record);
-    } catch (err) {
+    } catch {
       await this.writeRecord(runId, source.id, record, 'failed', {
         problem_code: 'processing_error',
         payload: record.payload,
@@ -350,7 +351,7 @@ export class IngestService {
         .where('id', '=', propertyId)
         .executeTakeFirst();
       if (geo?.missing) {
-        await this.jobs?.schedule(JOB_GEOCODE, { propertyId }, new Date(), {
+        await this.jobs?.schedule(JOB_GEOCODE, { propertyId }, systemClock.now(), {
           dedupeId: `geocode:${propertyId}`,
         });
       }

@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Db, TxContext } from '../../shared/database/db.service';
+import { systemClock } from '../../shared/jobs/clock';
 import { contactLifecycle, ContactLifecycle } from './contact-lifecycle';
 
 export type ChannelKind = 'email' | 'phone';
@@ -276,7 +277,7 @@ export class ContactsService {
         .updateTable('core.contact_channel')
         .set({ contact_id: survivingId, is_preferred: false })
         .where('contact_id', '=', absorbedId)
-        .where(({ eb, not, exists, selectFrom }) =>
+        .where(({ not, exists, selectFrom }) =>
           not(
             exists(
               selectFrom('core.contact_channel as dup')
@@ -301,7 +302,7 @@ export class ContactsService {
         .updateTable('core.contact_role')
         .set({ contact_id: survivingId })
         .where('contact_id', '=', absorbedId)
-        .where(({ eb, not, exists, selectFrom }) =>
+        .where(({ not, exists, selectFrom }) =>
           not(
             exists(
               selectFrom('core.contact_role as dup')
@@ -421,7 +422,7 @@ export class ContactsService {
 
       await ctx.trx
         .updateTable('core.contact_merge')
-        .set({ unmerged_at: new Date() })
+        .set({ unmerged_at: systemClock.now() })
         .where('id', '=', mergeId)
         .execute();
       await ctx.emit({
@@ -441,7 +442,7 @@ export class ContactsService {
   private async touch(ctx: TxContext, contactId: string): Promise<void> {
     await ctx.trx
       .updateTable('core.contact')
-      .set({ updated_at: new Date() })
+      .set({ updated_at: systemClock.now() })
       .where('id', '=', contactId)
       .execute();
   }

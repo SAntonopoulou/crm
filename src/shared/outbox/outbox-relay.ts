@@ -1,5 +1,6 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { Db } from '../database/db.service';
+import { systemClock } from '../jobs/clock';
 
 export interface PublishableEvent {
   seq: string;
@@ -76,7 +77,7 @@ export class OutboxRelay {
 
       await trx
         .updateTable('core.outbox_event')
-        .set({ published_at: new Date() })
+        .set({ published_at: systemClock.now() })
         .where(
           'seq',
           'in',

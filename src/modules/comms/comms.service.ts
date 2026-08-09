@@ -3,7 +3,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { Db, TxContext } from '../../shared/database/db.service';
+import { Db } from '../../shared/database/db.service';
 import { Clock } from '../../shared/jobs/clock';
 import { JobScheduler } from '../../shared/jobs/job-scheduler';
 import { addDays, localDateOf, wallClockToUtc } from '../../shared/time';

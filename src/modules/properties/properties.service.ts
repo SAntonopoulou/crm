@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { sql } from 'kysely';
 import { Db, TxContext } from '../../shared/database/db.service';
-import { Clock } from '../../shared/jobs/clock';
+import { Clock, systemClock } from '../../shared/jobs/clock';
 import { JobScheduler } from '../../shared/jobs/job-scheduler';
 import {
   ProvenanceResolver,
@@ -87,7 +87,7 @@ export class PropertiesService {
     to: ListingState,
     actorId: string | null,
   ): Promise<void> {
-    const now = this.clock?.now() ?? new Date();
+    const now = this.clock?.now() ?? systemClock.now();
     await this.db.tx(async (ctx) => {
       const listing = await ctx.trx
         .selectFrom('core.listing')
@@ -148,7 +148,7 @@ export class PropertiesService {
     const key = canonicalKey(address);
 
     let created = false;
-    let property = await ctx.trx
+    const property = await ctx.trx
       .selectFrom('core.property')
       .select(['id', 'merged_into'])
       .where('canonical_key', '=', key)

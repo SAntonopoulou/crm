@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { systemClock } from '../jobs/clock';
 import { Transaction } from 'kysely';
 import type { DB } from '../database/db';
 
@@ -71,7 +72,7 @@ export class ProvenanceResolver {
             confidence: incoming.confidence ?? null,
             collected_at: incoming.collectedAt,
             candidate: null,
-            updated_at: new Date(),
+            updated_at: systemClock.now(),
           }),
         )
         .execute();
@@ -88,7 +89,7 @@ export class ProvenanceResolver {
           source_id: incoming.sourceId ?? null,
           collected_at: incoming.collectedAt.toISOString(),
         }),
-        updated_at: new Date(),
+        updated_at: systemClock.now(),
       })
       .where('entity_type', '=', incoming.entityType)
       .where('entity_id', '=', incoming.entityId)

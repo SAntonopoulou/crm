@@ -5,7 +5,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { Db } from '../../shared/database/db.service';
-import { Clock } from '../../shared/jobs/clock';
+import { Clock, systemClock } from '../../shared/jobs/clock';
 import { ValuationService, ValueEstimate } from './valuation.service';
 
 export interface Money {
@@ -53,7 +53,7 @@ export class PortfolioService {
   ) {}
 
   private now(): Date {
-    return this.clock?.now() ?? new Date();
+    return this.clock?.now() ?? systemClock.now();
   }
 
   async list(

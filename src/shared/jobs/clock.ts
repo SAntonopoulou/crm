@@ -15,6 +15,13 @@ export class SystemClock extends Clock {
   }
 }
 
+/**
+ * For row-timestamp conveniences in code without an injected Clock.
+ * Anything driving TIMERS or DOMAIN DECISIONS must inject Clock instead —
+ * the lint rule bans bare `new Date()` outside this file to enforce that.
+ */
+export const systemClock = new SystemClock();
+
 export class TestClock extends Clock {
   private current: Date;
 

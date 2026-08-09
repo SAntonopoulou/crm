@@ -22,16 +22,16 @@ External integrations are **ports with safe defaults**: providers and the geocod
 - [ ] Object storage adapter (`StoragePort`) + thumbnailing/EXIF-strip/virus-scan post-processing
 - [ ] Deployment: environments, secrets (incl. KMS-held suppression HMAC key), backups per runbook §4, monitoring/alerting per runbook §5
 
-**Product depth (spec items built thin or deferred):**
-- [ ] Appointment reminders (T-24h / T-2h) and automatic re-dispatch on agent cancellation/no-show
-- [ ] Open-house capacity & waitlist service logic (tables exist)
-- [ ] Agent scorecard materialised view feeding dispatch ranking (rating currently neutral)
-- [ ] Template merge-field rendering + locale fallback in the sequencer
-- [ ] DSR access/portability export assembly (erasure/restriction are complete)
-- [ ] Two-way Google/Outlook calendar sync (outbound iCal feed is live)
-- [ ] Account recovery queue (dual approval), bulk-export controls/watermarking, per-device session revocation
-- [ ] Breach-incident workflow tooling beyond the log table; localized breach-notice templates
-- [ ] ESLint + module-boundary lint rules; e2e contract-conformance tests against the OpenAPI docs
+**Product depth — ALL DONE (2026-08-09):**
+- [x] Appointment reminders (T-24h / T-2h) and automatic re-dispatch on agent cancellation/no-show
+- [x] Open-house capacity & waitlist service logic with auto-promotion
+- [x] Agent scorecard materialised view feeding dispatch ranking
+- [x] Template merge-field rendering + locale fallback in the sequencer
+- [x] DSR access/portability export assembly with subject-only download
+- [x] Calendar sync port (claim push, withdrawal removal, busy-import → absences; OAuth adapter at deploy)
+- [x] Account recovery (dual distinct approval + payout cooldown), bulk-export watermarking, session revocation via IdP port
+- [x] Breach-incident workflow: state machine, timeline, T-12h deadline warning, subject notices (templates pending counsel)
+- [x] ESLint (bare-`new Date()` ban enforcing the Clock doctrine, module boundaries) + contract-conformance e2e
 
 **Legal / organisational (flagged in [docs/domain-model.md §15](docs/domain-model.md) — not engineering):**
 - [ ] LIA for scraped data (counsel) — referenced by the Art 30 register

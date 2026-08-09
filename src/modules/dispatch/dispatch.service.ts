@@ -1,15 +1,13 @@
 import {
   ConflictException,
-  ForbiddenException,
   GoneException,
   Injectable,
   NotFoundException,
   Optional,
-  UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { sql } from 'kysely';
-import { Db, TxContext } from '../../shared/database/db.service';
+import { Db } from '../../shared/database/db.service';
 import { Clock } from '../../shared/jobs/clock';
 import { JobScheduler } from '../../shared/jobs/job-scheduler';
 import { AppointmentsService } from '../appointments/appointments.service';
