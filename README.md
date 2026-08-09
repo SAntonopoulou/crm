@@ -4,11 +4,22 @@ The CRM service for the property listing platform: domain model, business logic,
 
 ## Status
 
-Design phase. Deliverable 1 is up for review:
+Design phase — all seven deliverable maps are up for review. Implementation starts once they're approved, in the order below.
 
-- **[Domain model & ERD](docs/domain-model.md)** — module map, per-module ERDs, the listing / dispatch-offer / appointment / agent-status state machines, cross-cutting mechanics (provenance, atomic claim, suppression, crypto-shredding), and flagged legal/architectural risks.
+## Deliverables map
 
-Implementation (migrations → modules → OpenAPI → events → tests → runbook) starts once the model is approved.
+| # | Deliverable | Document | What's in it |
+|---|---|---|---|
+| 1 | Domain model & ERD | [domain-model.md](docs/domain-model.md) | module map, per-module ERDs, the four state machines, cross-cutting mechanics, flagged legal/architectural risks |
+| 2 | Migration set | [migration-plan.md](docs/migration-plan.md) | SQL-first tooling, migration sequence, index plan justified against the dispatch & availability hot paths, partitioning, DB roles |
+| 3 | Module implementation | [module-plan.md](docs/module-plan.md) | build order & dependencies, per-module scope and definition of done, shared kernel rules |
+| 4 | API specification | [api-specification.md](docs/api-specification.md) | versioning & deprecation, ingest contract (scraper team), client contract (web/Flutter team), claim semantics, delta sync, min-version gate |
+| 5 | Event catalogue | [event-catalogue.md](docs/event-catalogue.md) | outbox/webhook envelope, PII-minimal payload policy, full event list with triggers and consumers, consumer obligations |
+| 6 | Test suite | [test-strategy.md](docs/test-strategy.md) | pyramid & tooling, concrete designs for the seven mandated scenarios, CI gates |
+| 7 | Operational runbook | [runbook.md](docs/runbook.md) | dispatch tuning parameters, job & retention schedules, 72-hour breach procedure, restore-with-erasure-consistency, alert thresholds |
+
+**For the scraper team:** start with the [ingest contract](docs/api-specification.md#4--ingest-contract-scraper-team) and the ingest events in the [event catalogue](docs/event-catalogue.md).
+**For the client team:** start with the [client contract](docs/api-specification.md#5--client-contract-web--flutter-team--surface-map), [delta sync](docs/api-specification.md#7--delta-sync--offline-writes), and the [event catalogue](docs/event-catalogue.md) consumer obligations.
 
 ## Locked decisions
 
