@@ -586,6 +586,124 @@ export class DispatchService {
     };
   }
 
+  /**
+   * Staff direct assignment. Rides the SAME atomic claim path via a
+   * synthetic offer, so every invariant (one winner, agreement, grant,
+   * schedule exclusion) holds for manual overrides too.
+   */
+  async directAssign(
+    dispatchId: string,
+    agentId: string,
+    staffId: string,
+  ): Promise<ClaimResult> {
+    const now = this.clock.now();
+    const dispatch = await this.db.kysely
+      .selectFrom('core.dispatch')
+      .selectAll()
+      .where('id', '=', dispatchId)
+      .executeTakeFirst();
+    if (!dispatch) throw new NotFoundException({ code: 'dispatch_not_found' });
+    if (dispatch.state === 'no_agent') {
+      // Ops fallback path: reopen the dispatch for the manual assignment.
+      await this.db.kysely
+        .updateTable('core.dispatch')
+        .set({ state: 'offering' })
+        .where('id', '=', dispatchId)
+        .where('state', '=', 'no_agent')
+        .execute();
+    } else if (dispatch.state !== 'offering') {
+      throw new ConflictException({ code: 'state_conflict' });
+    }
+
+    const existing = await this.db.kysely
+      .selectFrom('core.dispatch_offer')
+      .select(['id', 'state'])
+      .where('dispatch_id', '=', dispatchId)
+      .where('agent_id', '=', agentId)
+      .executeTakeFirst();
+    let offerId: string;
+    if (existing && ['sent', 'seen'].includes(existing.state)) {
+      offerId = existing.id;
+    } else if (existing) {
+      // Re-arm a lapsed/declined offer for the manual override.
+      await this.db.kysely
+        .updateTable('core.dispatch_offer')
+        .set({ state: 'sent', ttl_expires_at: new Date(now.getTime() + 60_000) })
+        .where('id', '=', existing.id)
+        .execute();
+      offerId = existing.id;
+    } else {
+      const offer = await this.db.tx(async (ctx) => {
+        const row = await ctx.trx
+          .insertInto('core.dispatch_offer')
+          .values({
+            dispatch_id: dispatchId,
+            agent_id: agentId,
+            ttl_expires_at: new Date(now.getTime() + 60_000),
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow();
+        await ctx.emit({
+          aggregateType: 'dispatch',
+          aggregateId: dispatchId,
+          eventType: 'dispatch.offer_sent',
+          payload: { offer_id: row.id, agent_id: agentId, manual: true, staff_id: staffId },
+        });
+        return row;
+      });
+      offerId = offer.id;
+    }
+    return this.claim(offerId, agentId, { deviceFingerprint: `staff:${staffId}` });
+  }
+
+  /** Attribution dispute resolution (staff). */
+  async resolveDispute(
+    disputeId: string,
+    staffId: string,
+    resolution: Record<string, unknown>,
+    attributionState?: 'active' | 'revoked',
+  ): Promise<void> {
+    const dispute = await this.db.kysely
+      .selectFrom('core.dispute')
+      .select(['id', 'attribution_id', 'state'])
+      .where('id', '=', disputeId)
+      .executeTakeFirst();
+    if (!dispute) throw new NotFoundException({ code: 'dispute_not_found' });
+    if (dispute.state === 'resolved') {
+      throw new ConflictException({ code: 'already_resolved' });
+    }
+    await this.db.tx(async (ctx) => {
+      await ctx.trx
+        .updateTable('core.dispute')
+        .set({
+          state: 'resolved',
+          resolution: JSON.stringify(resolution),
+          resolved_by: staffId,
+        })
+        .where('id', '=', disputeId)
+        .execute();
+      if (attributionState) {
+        await ctx.trx
+          .updateTable('core.attribution')
+          .set({ state: attributionState })
+          .where('id', '=', dispute.attribution_id)
+          .execute();
+        await ctx.emit({
+          aggregateType: 'attribution',
+          aggregateId: dispute.attribution_id,
+          eventType: 'attribution.state_changed',
+          payload: { from: 'disputed', to: attributionState },
+        });
+      }
+      await ctx.emit({
+        aggregateType: 'attribution',
+        aggregateId: dispute.attribution_id,
+        eventType: 'dispute.resolved',
+        payload: { dispute_id: disputeId },
+      });
+    });
+  }
+
   async decline(offerId: string, agentId: string): Promise<void> {
     const offer = await this.db.kysely
       .selectFrom('core.dispatch_offer')

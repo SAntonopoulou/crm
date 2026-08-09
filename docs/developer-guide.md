@@ -207,19 +207,37 @@ report outputs.
 
 ## 7 · Jobs, ops, and the bits that run on a schedule
 
-Job handlers registered today (wire as BullMQ repeatables at deploy; the
-schedule table with owners lives in [runbook §2](runbook.md#2--scheduled-jobs)):
-`pipeline.sla_breach`, `matching.evaluate_listing`, `appointment.hold_expire`,
-`dispatch.start`, `dispatch.offer_ttl`, `notification.deliver/escalate/
-dispatch_offer`, `comms.sequence_step`, `agents.doc_lapse_check`,
-`privacy.dsr_escalation`, `privacy.grant_revoke`, `privacy.retention_sweep`.
+**Set `JOBS_ENABLED=true` on at least one replica** — that starts the BullMQ
+worker (`WorkerModule`) which consumes every job below and registers the
+repeatable schedules (relay tick 10 s, grant revocation 5 min, retention
+03:00, doc-lapse 06:00, portfolio revalue hourly; Europe/Brussels). API-only
+replicas and tests leave it off. Schedule ownership: [runbook §2](runbook.md#2--scheduled-jobs).
+
+Handlers: `pipeline.sla_breach`, `matching.evaluate_listing`,
+`appointment.hold_expire`, `dispatch.start`, `dispatch.offer_ttl`,
+`notification.deliver/escalate/dispatch_offer`, `comms.sequence_step`,
+`agents.doc_lapse_check`, `privacy.dsr_escalation`, `privacy.grant_revoke`,
+`privacy.retention_sweep`, `properties.geocode`, `portfolio.revalue`,
+`outbox.relay_tick`, `webhooks.retry`.
+
+**Webhooks**: insert a `core.webhook_subscription` row (url, secret,
+`event_types` — exact names or `prefix.*`, empty = firehose) and the relay
+tick delivers HMAC-signed envelopes with retry/backoff; consumers verify
+`x-crm-signature` and dedupe on event id.
 
 Deploy-time configuration you must provide in production: Keycloak issuer +
-admin adapter (`IdpAdminPort`), KMS adapter (`KmsPort`), suppression HMAC key
-(KMS-held), push/SMS/email provider adapters (`ProviderRegistry`,
-`MessageProviderRegistry`), dispatch tuning flags. The defaults either no-op
-safely (providers) or **throw loudly** (IdP/KMS) so nothing silently skips a
-legal obligation.
+admin adapter (`IdpAdminPort`), KMS adapter (`KmsPort`), geocoder adapter
+(`GeocoderPort` — EU provider, goes in the processor register), storage
+adapter (`StoragePort`), suppression HMAC key (KMS-held), push/SMS/email
+provider adapters (`ProviderRegistry`, `MessageProviderRegistry`), dispatch
+tuning flags. The defaults either no-op safely (providers, geocoder) or
+**throw loudly** (IdP/KMS) so nothing silently skips a legal obligation.
+
+**Staff console write actions** (all `@Roles('staff')`, all through the
+audited domain services): quarantine accept/reject (accept reprocesses in
+place), `POST /v1/ops/dispatch/{id}/assign` (manual override through the SAME
+atomic claim path), dispute resolve, DSR process-erasure/refuse, agent
+approve/suspend/reinstate.
 
 ## 8 · Where everything else lives
 

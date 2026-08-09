@@ -235,6 +235,37 @@ export class PrivacyService {
     await this.jobs?.cancel(`dsr_esc:${dsrId}`);
   }
 
+  /** Staff refusal with mandatory grounds (Art 12(5) manifestly unfounded etc.). */
+  async refuseDsr(dsrId: string, staffId: string, grounds: string): Promise<void> {
+    if (!grounds.trim()) {
+      throw new NotFoundException({ code: 'grounds_required' });
+    }
+    await this.db.tx(async (ctx) => {
+      const updated = await ctx.trx
+        .updateTable('privacy.dsr')
+        .set({
+          state: 'refused',
+          completion_audit: JSON.stringify({
+            refused_at: this.clock.now().toISOString(),
+            actor_id: staffId,
+            grounds,
+          }),
+        })
+        .where('id', '=', dsrId)
+        .where('state', 'not in', ['completed', 'refused'])
+        .returning('id')
+        .executeTakeFirst();
+      if (!updated) throw new NotFoundException({ code: 'dsr_not_found' });
+      await ctx.emit({
+        aggregateType: 'dsr',
+        aggregateId: dsrId,
+        eventType: 'dsr.completed',
+        payload: { refused: true },
+      });
+    });
+    await this.jobs?.cancel(`dsr_esc:${dsrId}`);
+  }
+
   /** Restriction / objection → Art 18 processing freeze. */
   async applyRestriction(contactId: string, restricted: boolean): Promise<void> {
     await this.db.tx(async (ctx) => {

@@ -4,9 +4,13 @@ import {
   GoneException,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { sql } from 'kysely';
 import { Db } from '../../shared/database/db.service';
+import { JobScheduler } from '../../shared/jobs/job-scheduler';
+import { JOB_GEOCODE } from './geocoder.service';
 import { ProvenanceMethod } from '../../shared/provenance/provenance-resolver';
 import { ContactsService, normaliseChannelValue } from '../contacts/contacts.service';
 import { addressComplete, canonicalKey, normaliseAddress } from './normalise';
@@ -51,6 +55,7 @@ export class IngestService {
     private readonly properties: PropertiesService,
     private readonly contacts: ContactsService,
     private readonly suppression: SuppressionService,
+    @Optional() private readonly jobs?: JobScheduler,
   ) {}
 
   async processBatch(
@@ -224,7 +229,7 @@ export class IngestService {
     const method: ProvenanceMethod =
       defaultProv.method === 'owner_submitted' ? 'owner_submitted' : 'scraped';
 
-    return this.db.tx(async (ctx) => {
+    const { outcome, propertyId } = await this.db.tx(async (ctx) => {
       let propertyResult: { propertyId: string; created: boolean } | undefined;
       let contactId: string | undefined;
       let contactCreated = false;
@@ -334,8 +339,23 @@ export class IngestService {
         eventType: 'ingest.record_processed',
         payload: { idempotency_key: record.idempotency_key, outcome },
       });
-      return outcome;
+      return { outcome, propertyId: propertyResult?.propertyId };
     });
+
+    // Post-commit: fill in coordinates for properties that lack them.
+    if (propertyId) {
+      const geo = await this.db.kysely
+        .selectFrom('core.property')
+        .select(sql<boolean>`geo_point IS NULL`.as('missing'))
+        .where('id', '=', propertyId)
+        .executeTakeFirst();
+      if (geo?.missing) {
+        await this.jobs?.schedule(JOB_GEOCODE, { propertyId }, new Date(), {
+          dedupeId: `geocode:${propertyId}`,
+        });
+      }
+    }
+    return outcome;
   }
 
   async getBatch(
@@ -386,6 +406,56 @@ export class IngestService {
   }
 
   /** Re-run quarantined/failed records through current rules. */
+  /** Staff resolution of a quarantined record; accept reprocesses it. */
+  async resolveQuarantine(
+    quarantineId: string,
+    action: 'accept' | 'reject',
+    staffId: string,
+  ): Promise<{ state: string; outcome?: string }> {
+    const item = await this.db.kysely
+      .selectFrom('core.quarantine_item as q')
+      .innerJoin('core.ingest_record as r', 'r.id', 'q.ingest_record_id')
+      .select(['q.id', 'q.state', 'r.id as record_id', 'r.run_id', 'r.source_id',
+        'r.idempotency_key', 'r.dedupe_key', 'r.kind', 'r.payload', 'r.created_at'])
+      .where('q.id', '=', quarantineId)
+      .executeTakeFirst();
+    if (!item) throw new NotFoundException({ code: 'quarantine_not_found' });
+    if (item.state !== 'pending') {
+      throw new ConflictException({ code: 'already_resolved' });
+    }
+
+    await this.db.kysely
+      .updateTable('core.quarantine_item')
+      .set({ state: action === 'accept' ? 'accepted' : 'rejected', reviewed_by: staffId })
+      .where('id', '=', quarantineId)
+      .execute();
+
+    if (action === 'reject') return { state: 'rejected' };
+    if (item.payload === null) throw new GoneException({ code: 'payload_purged' });
+
+    const source = await this.db.kysely
+      .selectFrom('core.source')
+      .select(['id', 'kind'])
+      .where('id', '=', item.source_id)
+      .executeTakeFirstOrThrow();
+    // Staff acceptance vouches for the record: reprocess at full confidence;
+    // writeRecord upserts, so the row and its audit trail survive.
+    const outcome = await this.processFresh(item.run_id, source, {
+      idempotency_key: item.idempotency_key,
+      dedupe_key: item.dedupe_key ?? undefined,
+      kind: item.kind as IngestRecordInput['kind'],
+      payload: item.payload as IngestRecordInput['payload'],
+      provenance: [
+        {
+          collected_at: new Date(item.created_at).toISOString(),
+          method: 'scraped',
+          confidence: 1,
+        },
+      ],
+    });
+    return { state: 'accepted', outcome };
+  }
+
   async replayBatch(batchId: string): Promise<{ batch_id: string; status: string }> {
     const run = await this.db.kysely
       .selectFrom('core.ingest_run')
@@ -420,14 +490,11 @@ export class IngestService {
           { collected_at: new Date(row.created_at).toISOString(), method: 'scraped' },
         ],
       };
-      // Delete the old attempt so processFresh can record a new outcome.
+      // Clear the stale quarantine entry; the record row itself is upserted
+      // in place by processFresh.
       await this.db.kysely
         .deleteFrom('core.quarantine_item')
         .where('ingest_record_id', '=', row.id)
-        .execute();
-      await this.db.kysely
-        .deleteFrom('core.ingest_record')
-        .where('id', '=', row.id)
         .execute();
       await this.processFresh(batchId, source, record);
     }
@@ -465,23 +532,30 @@ export class IngestService {
       trx?: { trx: import('kysely').Transaction<import('../../shared/database/db').DB> };
     },
   ): Promise<string> {
-    const q = (extra.trx?.trx ?? this.db.kysely)
+    const values = {
+      run_id: runId,
+      source_id: sourceId,
+      idempotency_key: record.idempotency_key,
+      dedupe_key: record.dedupe_key ?? null,
+      kind: record.kind,
+      payload:
+        extra.payload === null ? null : JSON.stringify(extra.payload ?? record.payload),
+      outcome,
+      problem_code: extra.problem_code ?? null,
+      quarantine_reason: extra.quarantine_reason ?? null,
+      property_id: extra.property_id ?? null,
+      contact_id: extra.contact_id ?? null,
+    };
+    // Upsert: quarantine acceptance and batch replay reprocess a record
+    // IN PLACE — the row (and its quarantine audit trail) is never deleted.
+    const row = await (extra.trx?.trx ?? this.db.kysely)
       .insertInto('core.ingest_record')
-      .values({
-        run_id: runId,
-        source_id: sourceId,
-        idempotency_key: record.idempotency_key,
-        dedupe_key: record.dedupe_key ?? null,
-        kind: record.kind,
-        payload: extra.payload === null ? null : JSON.stringify(extra.payload ?? record.payload),
-        outcome,
-        problem_code: extra.problem_code ?? null,
-        quarantine_reason: extra.quarantine_reason ?? null,
-        property_id: extra.property_id ?? null,
-        contact_id: extra.contact_id ?? null,
-      })
-      .returning('id');
-    const row = await q.executeTakeFirstOrThrow();
+      .values(values)
+      .onConflict((oc) =>
+        oc.columns(['source_id', 'idempotency_key']).doUpdateSet(values),
+      )
+      .returning('id')
+      .executeTakeFirstOrThrow();
     return row.id;
   }
 
