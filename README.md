@@ -6,7 +6,7 @@ The CRM service for the property listing platform: domain model, business logic,
 
 ## State of the project
 
-**Feature-complete against the spec's CRM scope; not yet deployed.** All domain modules are implemented and tested (93 tests, CI-gated): contacts & identity, properties & ingest (provenance, suppression, quarantine, geocoding port), pipelines & matching, appointments (tz-correct slots, holds, exclusion-constraint booking), agent registry, dispatch with the atomic claim, notifications (ACK-driven fallback chains), comms (pre-send compliance gate, Art 14), privacy/GDPR (DSR queue, erasure orchestration, purpose-bound grants, retention), portfolio (client-team scope), reporting & staff ops actions, delta sync / bootstrap / iCal / media endpoints, BullMQ worker runtime, and signed webhook fan-out.
+**Feature-complete against the spec's CRM scope; not yet deployed.** All domain modules are implemented and tested (110 tests, CI-gated incl. lint and contract-conformance e2e): contacts & identity, properties & ingest (provenance, suppression, quarantine, geocoding port), pipelines & matching, appointments (tz-correct slots, holds, exclusion-constraint booking), agent registry, dispatch with the atomic claim, notifications (ACK-driven fallback chains), comms (pre-send compliance gate, Art 14), privacy/GDPR (DSR queue, erasure orchestration, purpose-bound grants, retention), portfolio (client-team scope), reporting & staff ops actions, delta sync / bootstrap / iCal / media endpoints, BullMQ worker runtime, and signed webhook fan-out.
 
 All seven mandated test scenarios pass: concurrent claim (exactly one winner, soak-tested), idempotent re-ingest, erasure propagation incl. suppression, SLA timer expiry, availability conflicts incl. DST edges, notification fallback escalation, and purpose-bound access expiry.
 
@@ -64,5 +64,5 @@ External integrations are **ports with safe defaults**: providers and the geocod
 | Identity provider | Keycloak (CRM stores only the opaque subject ID) |
 | Exclusivity & attribution | Exclusive window, sole credit (touches snapshotted for future split policies) |
 | Operating model | Hybrid — staff-mediated until owner verification, then self-serve |
-| API | Contract-first; `api/openapi/*.yaml` is frozen at v1.1 — implementation conforms to it |
+| API | Contract-first; `api/openapi/*.yaml` is frozen at v1.2 — implementation conforms to it |
 | Valuation | Adaptive-radius comps: same kind, ±30% area, 2→5 km, 12-month recency, min 5 comps, median €/m² |
