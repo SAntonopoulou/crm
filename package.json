@@ -12,7 +12,8 @@
     "codegen": "kysely-codegen --dialect postgres --include-pattern '(core|audit|privacy).*' --out-file src/shared/database/db.d.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint:api": "redocly lint api/openapi/crm-v1.yaml api/openapi/ingest-v1.yaml"
+    "lint:api": "redocly lint api/openapi/crm-v1.yaml api/openapi/ingest-v1.yaml",
+    "seed": "node scripts/seed.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.28",
